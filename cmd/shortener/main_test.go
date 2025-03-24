@@ -19,7 +19,7 @@ func TestPostHandlerPositive(t *testing.T) {
 		CodeStatus     int
 		ContentType    string
 		LenghtShortID  int
-		ShortIdCorrect bool
+		ShortIDCorrect bool
 	}
 
 	tests := []struct {
@@ -34,7 +34,7 @@ func TestPostHandlerPositive(t *testing.T) {
 				CodeStatus:     201,
 				ContentType:    "text/plain",
 				LenghtShortID:  8,
-				ShortIdCorrect: true,
+				ShortIDCorrect: true,
 			},
 		},
 		{
@@ -44,7 +44,7 @@ func TestPostHandlerPositive(t *testing.T) {
 				CodeStatus:     201,
 				ContentType:    "text/plain",
 				LenghtShortID:  8,
-				ShortIdCorrect: true,
+				ShortIDCorrect: true,
 			},
 		},
 	}
@@ -103,6 +103,7 @@ func TestGetHandler(t *testing.T) {
 
 	mux.ServeHTTP(w, request)
 	result := w.Result()
+	defer result.Body.Close()
 
 	assert.Equal(t, http.StatusTemporaryRedirect, result.StatusCode)
 	assert.Equal(t, "http://test.com", result.Header.Get("Location"))
