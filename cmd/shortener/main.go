@@ -25,7 +25,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body, err := io.ReadAll(r.Body)
-	if err != nil {
+	if err != nil || len(body) == 0 {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -34,8 +34,8 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 
 	StorageURL[shortID] = originalURL
 
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "http://localhost:8080/%s", shortID)
 
 }
