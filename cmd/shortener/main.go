@@ -5,6 +5,8 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+
+	"github.com/go-chi/chi"
 )
 
 var StorageURL = make(map[string]string)
@@ -45,7 +47,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only GET requests are allowed", http.StatusBadGateway)
 		return
 	}
-	id := r.PathValue("id")
+	id := chi.URLParam(r, "id")
 
 	longURL, exists := StorageURL[id]
 	if !exists {
@@ -60,11 +62,13 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /", postHandler)
-	mux.HandleFunc("GET /{id}", getHandler)
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Post("/", postHandler)
+		r.Get("/{id}", getHandler)
+	})
 
-	err := http.ListenAndServe(`:8080`, mux)
+	err := http.ListenAndServe(`:8080`, r)
 	if err != nil {
 		panic(err)
 	}

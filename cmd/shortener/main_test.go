@@ -8,19 +8,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// Введем все возможные символы для короткого URL
 const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
+// // want описывает ожидаемые характеристики ответа:
+//   - CodeStatus: HTTP-статус (например, 201 Created).
+//   - ContentType: заголовок Content-Type (например, "text/plain").
+//   - LenghtShortID: ожидаемая длина короткого идентификатора.
+//   - ShortIDCorrect: должен ли идентификатор состоять из допустимых символов (chars).нны короткого URL, проверки корректен он или нет в соответствие с нашим chars
 func TestPostHandlerPositive(t *testing.T) {
 	type want struct {
 		CodeStatus     int
 		ContentType    string
-		LenghtShortID  int
+		LengthShortID  int
 		ShortIDCorrect bool
 	}
+
+	// tests определяет набор тестовых случаев:
+	//   - name: название теста (для удобства отладки).
+	//   - URL: исходный URL для сокращения.
+	//   - want: ожидаемые результаты.
 
 	tests := []struct {
 		name string
@@ -33,7 +45,7 @@ func TestPostHandlerPositive(t *testing.T) {
 			want: want{
 				CodeStatus:     201,
 				ContentType:    "text/plain",
-				LenghtShortID:  8,
+				LengthShortID:  8,
 				ShortIDCorrect: true,
 			},
 		},
@@ -43,7 +55,7 @@ func TestPostHandlerPositive(t *testing.T) {
 			want: want{
 				CodeStatus:     201,
 				ContentType:    "text/plain",
-				LenghtShortID:  8,
+				LengthShortID:  8,
 				ShortIDCorrect: true,
 			},
 		},
@@ -52,29 +64,43 @@ func TestPostHandlerPositive(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
+			// Создаем тестовый запрос в который передаем нашу ссылку для сокращения
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(test.URL))
+
+			// Инициализируем тестовую запись ответа
 			w := httptest.NewRecorder()
+
+			// Запускаю обработчик с местом куда записывать и с запросом
 			postHandler(w, request)
 
 			result := w.Result()
 			defer result.Body.Close()
 
+			// Сравниваем желаемый статус код и то, что у нас выдается
+			// Сравниваем желаемый тип с тем, что по факту
 			assert.Equal(t, test.want.CodeStatus, result.StatusCode)
 			assert.Equal(t, test.want.ContentType, result.Header.Get("Content-Type"))
 
+			// Записываем данные из ответа сервера в body (передается в byte)
+			// Поэтому потом переводим в string
 			body, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			fullURL := string(body)
 
+			// Проверяем, что ShortID состоит только из допустимых символов (chars).
+			// Преобразуем chars в []rune для удобства проверки.
+			// Отделяем префикс, чтобы потом от прочитанного URL можно было оставить
+			// только наше сокращение
 			prefix := "http://localhost:8080/"
 			ShortID := strings.TrimPrefix(fullURL, prefix)
 			arrChars := []rune(chars)
 
+			// Циклом проверяем каждую букву на соответствие
 			for _, v := range ShortID {
 				assert.True(t, slices.Contains(arrChars, v), "ShortID состоит из неправильных символов")
 			}
 
-			assert.Equal(t, test.want.LenghtShortID, len(ShortID), "Некорректная длина ShortID")
+			assert.Equal(t, test.want.LengthShortID, len(ShortID), "Некорректная длина ShortID")
 
 		})
 	}
@@ -93,18 +119,35 @@ func TestPostHandlerNegative(t *testing.T) {
 }
 
 func TestGetHandler(t *testing.T) {
+
+	// Добавляем тестовую запись в мапу, исходный URL http://test.com, ключ abc123
 	StorageURL["abc123"] = "http://test.com"
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{id}", getHandler)
+	// Создаем наш роутер и регистрируем обработчик getHandler для GET запроса по пути /{id}
+	r := chi.NewRouter()
+	r.Get("/{id}", getHandler)
 
 	request := httptest.NewRequest(http.MethodGet, "/abc123", nil)
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, request)
+	r.ServeHTTP(w, request)
 	result := w.Result()
 	defer result.Body.Close()
 
 	assert.Equal(t, http.StatusTemporaryRedirect, result.StatusCode)
 	assert.Equal(t, "http://test.com", result.Header.Get("Location"))
+}
+
+func TestGetHandlerNegative(t *testing.T) {
+	r := chi.NewRouter()
+	r.Get("/{id}", getHandler)
+
+	request := httptest.NewRequest(http.MethodGet, "/invalid_id", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, request)
+	result := w.Result()
+	defer result.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, result.StatusCode)
 }
