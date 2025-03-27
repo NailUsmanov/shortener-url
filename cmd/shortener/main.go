@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 
-	"github.com/NailUsmanov/practicum-shortener-url/internal/config"
+	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"github.com/go-chi/chi"
 )
 
