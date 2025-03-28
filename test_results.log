@@ -1,0 +1,28 @@
+[10:57:03] 🔨 Собираю приложение...
+[10:57:04] ✅ Сборка успешна
+[10:57:04] 
+🔍 Запускаю Iteration1 с параметрами: -test.run=^TestIteration1$ -binary-path=cmd/shortener/shortener
+run_tests:15: no such file or directory: ./shortenertestbeta
+[10:57:04] ✅ Iteration1 пройден успешно
+[10:57:04] 
+🔍 Запускаю Iteration2 с параметрами: -test.run=^TestIteration2$ -source-path=.
+run_tests:15: no such file or directory: ./shortenertestbeta
+[10:57:04] ✅ Iteration2 пройден успешно
+[10:57:04] 
+🔍 Запускаю Iteration3 с параметрами: -test.run=^TestIteration3$ -source-path=.
+run_tests:15: no such file or directory: ./shortenertestbeta
+[10:57:04] ✅ Iteration3 пройден успешно
+[10:57:04] 
+🔍 Запускаю Iteration4 с параметрами: -test.run=^TestIteration4$ -binary-path=cmd/shortener/shortener -server-port=8080
+run_tests:15: no such file or directory: ./shortenertestbeta
+[10:57:04] ✅ Iteration4 пройден успешно
+[10:57:04] 
+🔍 Запускаю Iteration5 с параметрами: -test.run=^TestIteration5$ -binary-path=cmd/shortener/shortener -server-port=8080
+run_tests:15: no such file or directory: ./shortenertestbeta
+[10:57:04] ✅ Iteration5 пройден успешно
+[10:57:04] 
+🔍 Запускаю Iteration6 с параметрами: -test.run=^TestIteration6$ -binary-path=cmd/shortener/shortener -source-path=. -server-port=8080
+run_tests:15: no such file or directory: ./shortenertestbeta
+[10:57:04] ✅ Iteration6 пройден успешно
+[10:57:04] 
+🎉 Все тесты успешно пройдены!
