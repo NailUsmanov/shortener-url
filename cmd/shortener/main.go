@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 
+	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"github.com/go-chi/chi"
 )
 
@@ -38,7 +39,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "http://localhost:8080/%s", shortID)
+	fmt.Fprintf(w, "%s/%s", config.BaseURL, shortID)
 
 }
 
@@ -63,12 +64,14 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	r := chi.NewRouter()
+	config.ParseFlag()
+
 	r.Route("/", func(r chi.Router) {
 		r.Post("/", postHandler)
 		r.Get("/{id}", getHandler)
 	})
 
-	err := http.ListenAndServe(`:8080`, r)
+	err := http.ListenAndServe(config.FlagRunAddr, r)
 	if err != nil {
 		panic(err)
 	}

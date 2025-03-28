@@ -91,16 +91,16 @@ func TestPostHandlerPositive(t *testing.T) {
 			// Преобразуем chars в []rune для удобства проверки.
 			// Отделяем префикс, чтобы потом от прочитанного URL можно было оставить
 			// только наше сокращение
-			prefix := "http://localhost:8080/"
-			ShortID := strings.TrimPrefix(fullURL, prefix)
+			parts := strings.Split(fullURL, "/")
+			ShortID := parts[len(parts)-1]
 			arrChars := []rune(chars)
 
 			// Циклом проверяем каждую букву на соответствие
 			for _, v := range ShortID {
-				assert.True(t, slices.Contains(arrChars, v), "ShortID состоит из неправильных символов")
+				assert.True(t, slices.Contains(arrChars, v), "ShortID состоит из неправильных символов %s", ShortID)
 			}
 
-			assert.Equal(t, test.want.LengthShortID, len(ShortID), "Некорректная длина ShortID")
+			assert.Equal(t, test.want.LengthShortID, len(ShortID), "Некорректная длина ShortID %s", ShortID)
 
 		})
 	}
