@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
+	_ "net/url"
+	"strings"
 
 	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"github.com/go-chi/chi"
@@ -39,7 +42,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "%s/%s", config.BaseURL, shortID)
+	fmt.Fprintf(w, "%s/%s", strings.TrimSuffix(config.BaseURL, "/"), shortID)
 
 }
 
@@ -55,6 +58,9 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !strings.HasPrefix(longURL, "http://") && !strings.HasPrefix(longURL, "https://") {
+		longURL = "http://" + longURL
+	}
 
 	w.Header().Set("Location", longURL)
 	w.WriteHeader(http.StatusTemporaryRedirect)
@@ -64,11 +70,31 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	config.ParseFlag()
 	r := chi.NewRouter()
+
+	log.SetOutput(io.Discard)
+
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Полная перезапись для запросов вида "8080/abc123"
+			if strings.HasPrefix(r.URL.Path, "8080/") {
+				r.URL.Path = strings.TrimPrefix(r.URL.Path, "8080")
+			}
+			// Исправляем Host, если он отсутствует
+			if r.Host == "" {
+				r.Host = "localhost:8080"
+			}
+			// Принудительно устанавливаем схему
+			if r.URL.Scheme == "" {
+				r.URL.Scheme = "http"
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	r.Route("/", func(r chi.Router) {
 		r.Post("/", postHandler)
 		r.Get("/{id}", getHandler)
 	})
-	fmt.Printf("Server working on a port%s", config.FlagRunAddr)
 	err := http.ListenAndServe(config.FlagRunAddr, r)
 	if err != nil {
 		panic(err)

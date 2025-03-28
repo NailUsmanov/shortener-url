@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"strings"
 )
 
 var FlagRunAddr string
@@ -15,4 +16,6 @@ func ParseFlag() {
 	flag.StringVar(&BaseURL, "b", "localhost:8080", "base URL for short links")
 
 	flag.Parse()
+
+	BaseURL = strings.TrimRight(BaseURL, "/")
 }
