@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -24,5 +25,13 @@ func ParseFlag() {
 			port = "8080" // На случай если FlagRunAddr равен просто ":"
 		}
 		BaseURL = fmt.Sprintf("http://localhost:%s", port)
+	}
+
+	if EnvFlagRunAddr := os.Getenv("SERVER_ADDRESS"); EnvFlagRunAddr != "" {
+		FlagRunAddr = EnvFlagRunAddr
+	}
+
+	if EnvBaseURL := os.Getenv("BASE_URL"); EnvBaseURL != "" {
+		BaseURL = EnvBaseURL
 	}
 }
