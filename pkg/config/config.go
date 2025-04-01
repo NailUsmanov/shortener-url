@@ -33,5 +33,12 @@ func ParseFlag() {
 
 	if EnvBaseURL := os.Getenv("BASE_URL"); EnvBaseURL != "" {
 		BaseURL = EnvBaseURL
+	} else if BaseURL == "" {
+		// Формируем URL по умолчанию только если не задан через флаг или env
+		port := strings.TrimPrefix(FlagRunAddr, ":")
+		if port == "" {
+			port = "8080"
+		}
+		BaseURL = fmt.Sprintf("http://localhost:%s", port)
 	}
 }
