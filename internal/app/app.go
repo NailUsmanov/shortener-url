@@ -8,9 +8,14 @@ import (
 	"github.com/go-chi/chi"
 )
 
+type Storage interface {
+	Save(url string) (string, error)
+	Get(key string) (string, error)
+}
+
 type App struct {
 	router  chi.Mux
-	storage storage.Storage
+	storage Storage
 	handler *handlers.URLHandler
 }
 

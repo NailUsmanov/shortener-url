@@ -3,6 +3,7 @@ package handlers
 import (
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/go-chi/chi"
@@ -32,7 +33,21 @@ func (h *URLHandler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := h.storage.Save(string(body))
+	if len(body) == 0 {
+		http.Error(w, "Empty reques body", http.StatusBadRequest)
+		return
+	}
+
+	rawURL := string(body)
+
+	//Валидность URL
+	_, err = url.ParseRequestURI(rawURL)
+	if err != nil {
+		http.Error(w, "Invalid URL format", http.StatusBadRequest)
+		return
+	}
+
+	key, err := h.storage.Save(rawURL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
