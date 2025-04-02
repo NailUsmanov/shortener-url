@@ -25,12 +25,21 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse env: %w", err)
 	}
 
+	if cfg.RunAddr == "" {
+		cfg.RunAddr = ":8080" // Полный дефолт
+	} else if !strings.Contains(cfg.RunAddr, ":") {
+		cfg.RunAddr = ":" + cfg.RunAddr // Добавляем двоеточие если его нет
+	}
+
 	if cfg.BaseURL == "" {
-		port := strings.TrimPrefix(cfg.RunAddr, ":")
-		if port == "" {
-			port = "8080" // На случай если FlagRunAddr равен просто ":"
+		hostPort := cfg.RunAddr
+		if hostPort == ":" {
+			hostPort = ":8080" // Явно обрабатываем случай только ":"
 		}
-		cfg.BaseURL = fmt.Sprintf("http://localhost:%s", port)
+		if strings.HasPrefix(hostPort, ":") {
+			hostPort = "localhost" + hostPort
+		}
+		cfg.BaseURL = fmt.Sprintf("http://%s", hostPort)
 	}
 
 	return cfg, nil
