@@ -14,7 +14,7 @@ type Storage interface {
 }
 
 type App struct {
-	router  chi.Mux
+	router  *chi.Mux
 	storage Storage
 	handler *handlers.URLHandler
 }
@@ -24,7 +24,7 @@ func NewApp(s storage.Storage, baseURL string) *App {
 	handler := handlers.NewURLHandler(s, baseURL)
 
 	app := &App{
-		router:  *r, //разыменовываем указатель
+		router:  r, //разыменовываем указатель
 		storage: s,
 		handler: handler,
 	}
@@ -39,5 +39,5 @@ func (a *App) setupRoutes() {
 }
 
 func (a *App) Run(addr string) error {
-	return http.ListenAndServe(addr, &a.router) //передаем указатель на роутер
+	return http.ListenAndServe(addr, a.router) //передаем указатель на роутер
 }
