@@ -17,14 +17,25 @@ type Config struct {
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
 
-	flag.StringVar(&cfg.RunAddr, "a", ":8080", "address and port to run server")
-	flag.StringVar(&cfg.BaseURL, "b", "", "base URL for short links")
-	flag.Parse()
-
+	//Парсим переменные окружения, если есть
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse env: %w", err)
 	}
 
+	//Парсим флаги, если они переданы
+	flagRunAddr := flag.String("a", "", "address and port to run server")
+	flagBaseURL := flag.String("b", "", "base URL for short links")
+	flag.Parse()
+
+	//Если флаг передан, перезаписываем значения из переменных окружения
+	if *flagRunAddr != "" {
+		cfg.RunAddr = *flagRunAddr
+	}
+	if *flagBaseURL != "" {
+		cfg.BaseURL = *flagBaseURL
+	}
+
+	//Устанавливаем значение по умолчанию, если ничего не задано
 	if cfg.RunAddr == "" {
 		cfg.RunAddr = ":8080" // Полный дефолт
 	} else if !strings.Contains(cfg.RunAddr, ":") {
