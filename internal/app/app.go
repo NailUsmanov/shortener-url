@@ -6,6 +6,7 @@ import (
 	"github.com/NailUsmanov/practicum-shortener-url/internal/handlers"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/go-chi/chi"
+	"go.uber.org/zap"
 )
 
 type Storage interface {
@@ -17,16 +18,18 @@ type App struct {
 	router  *chi.Mux
 	storage Storage
 	handler *handlers.URLHandler
+	sugar   *zap.SugaredLogger
 }
 
-func NewApp(s storage.Storage, baseURL string) *App {
+func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 	r := chi.NewRouter()
-	handler := handlers.NewURLHandler(s, baseURL)
+	handler := handlers.NewURLHandler(s, baseURL, sugar)
 
 	app := &App{
 		router:  r, //разыменовываем указатель
 		storage: s,
 		handler: handler,
+		sugar:   sugar,
 	}
 
 	app.setupRoutes()
@@ -34,8 +37,8 @@ func NewApp(s storage.Storage, baseURL string) *App {
 }
 
 func (a *App) setupRoutes() {
-	a.router.Post("/", a.handler.CreateShortURL)
-	a.router.Get("/{id}", a.handler.Redirect)
+	a.router.Post("/", handlers.WithLogging(http.HandlerFunc(a.handler.CreateShortURL), a.sugar))
+	a.router.Get("/{id}", handlers.WithLoggingRedirect(http.HandlerFunc(a.handler.Redirect), a.sugar))
 }
 
 func (a *App) Run(addr string) error {

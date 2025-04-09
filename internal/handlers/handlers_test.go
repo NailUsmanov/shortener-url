@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -62,7 +63,17 @@ func TestCreateShortURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := &MockStorage{data: make(map[string]string)}
-			handler := NewURLHandler(storage, "http://test")
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				// вызываем панику, если ошибка
+				panic(err)
+			}
+			defer logger.Sync()
+
+			// делаем регистратор SugaredLogger
+			sugar := logger.Sugar()
+
+			handler := NewURLHandler(storage, "http://test", sugar)
 
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.requestBody))
 			w := httptest.NewRecorder()
@@ -128,7 +139,17 @@ func TestURLHandler_Redirect(t *testing.T) {
 			storage := &MockStorage{data: make(map[string]string)}
 			tt.setup(storage)
 
-			handler := NewURLHandler(storage, "http://test")
+			logger, err := zap.NewDevelopment()
+			if err != nil {
+				// вызываем панику, если ошибка
+				panic(err)
+			}
+			defer logger.Sync()
+
+			// делаем регистратор SugaredLogger
+			sugar := logger.Sugar()
+
+			handler := NewURLHandler(storage, "http://test", sugar)
 
 			router := chi.NewRouter()
 			router.Get("/{id}", handler.Redirect)
