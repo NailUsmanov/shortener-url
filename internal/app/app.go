@@ -37,9 +37,20 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 }
 
 func (a *App) setupRoutes() {
-	a.router.Post("/", handlers.WithLogging(http.HandlerFunc(a.handler.CreateShortURL), a.sugar))
-	a.router.Get("/{id}", handlers.WithLoggingRedirect(http.HandlerFunc(a.handler.Redirect), a.sugar))
-	a.router.Post("/api/shorten", handlers.WithLogging(http.HandlerFunc(a.handler.CreateShortURLJSON), a.sugar))
+	// POST
+	createShortURLHandler := http.HandlerFunc(a.handler.CreateShortURL)
+	gzipShortURLHandler := handlers.GzipMiddleware(createShortURLHandler, a.sugar)
+	a.router.Post("/", handlers.WithLogging(gzipShortURLHandler, a.sugar))
+
+	// GET
+	redirectHandler := http.HandlerFunc(a.handler.Redirect)
+	gzipRedirectHandler := handlers.GzipMiddleware(redirectHandler, a.sugar)
+	a.router.Get("/{id}", handlers.WithLoggingRedirect(gzipRedirectHandler, a.sugar))
+
+	// POST /api/shorten
+	createHandlerJSON := http.HandlerFunc(a.handler.CreateShortURLJSON)
+	gzipCreateShortURLJSON := handlers.GzipMiddleware(createHandlerJSON, a.sugar)
+	a.router.Post("/api/shorten", handlers.WithLogging(gzipCreateShortURLJSON, a.sugar))
 }
 
 func (a *App) Run(addr string) error {

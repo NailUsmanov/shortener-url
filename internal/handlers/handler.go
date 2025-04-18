@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/models"
@@ -202,4 +203,38 @@ func (h *URLHandler) CreateShortURLJSON(w http.ResponseWriter, r *http.Request) 
 		h.sugar.Error("error encoding response")
 	}
 
+}
+
+func GzipMiddleware(h http.Handler, logger *zap.SugaredLogger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ow := w
+
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		supportGzip := strings.Contains(acceptEncoding, "gzip")
+		contentType := r.Header.Get("Content-Type")
+		supportTypeJSON := strings.Contains(contentType, "application/json")
+		supportTypeHTML := strings.Contains(contentType, "text/html")
+		if supportGzip && (supportTypeHTML || supportTypeJSON) {
+			cw := NewCompressWriter(w)
+			ow = cw
+			defer cw.Close()
+			ow.Header().Set("Content-Encoding", "gzip")
+		}
+
+		contentEncoding := r.Header.Get("Content-Encoding")
+		sendsGzip := strings.Contains(contentEncoding, "gzip")
+		if sendsGzip {
+			cr, err := newCompressReader(r.Body, logger)
+			if err != nil {
+				if logger != nil {
+					logger.Errorf("Failed to decompress request: %v", err)
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+		h.ServeHTTP(ow, r)
+	})
 }
