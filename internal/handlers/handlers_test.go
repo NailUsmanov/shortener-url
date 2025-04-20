@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"io"
 	"net/http"
@@ -220,4 +222,61 @@ func TestCreateShortURLJSON(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGzipMiddleWare(t *testing.T) {
+	mockMiddleware := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+	handler := GzipMiddleware(mockMiddleware, nil)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	testBody := `{"input":"test"}`
+	expectedResponse := `{"status":"ok"}`
+
+	t.Run("compressed response", func(t *testing.T) {
+		req, err := http.NewRequest("POST", srv.URL, bytes.NewBufferString(testBody))
+		require.NoError(t, err)
+		req.Header.Set("Accept-Encoding", "gzip")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"))
+
+		zr, err := gzip.NewReader(resp.Body)
+		require.NoError(t, err)
+		defer zr.Close()
+
+		body, err := io.ReadAll(zr)
+		require.NoError(t, err)
+		assert.JSONEq(t, expectedResponse, string(body))
+	})
+
+	t.Run("compressed request", func(t *testing.T) {
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+		zw.Write([]byte(testBody))
+		zw.Close()
+
+		req, err := http.NewRequest("POST", srv.URL, &buf)
+		require.NoError(t, err)
+		req.Header.Set("Content-Encoding", "gzip")
+		req.Header.Set("Accept-Encoding", "")
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		assert.JSONEq(t, expectedResponse, string(body))
+	})
 }
