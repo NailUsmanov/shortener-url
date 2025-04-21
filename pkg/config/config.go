@@ -10,8 +10,9 @@ import (
 )
 
 type Config struct {
-	RunAddr string `env:"SERVER_ADDRESS" envDefault:":8080"`
-	BaseURL string `env:"BASE_URL"`
+	RunAddr    string `env:"SERVER_ADDRESS" envDefault:":8080"`
+	BaseURL    string `env:"BASE_URL"`
+	SaveInFile string `env:"FILE_STORAGE_PATH"`
 }
 
 func NewConfig() (*Config, error) {
@@ -25,14 +26,18 @@ func NewConfig() (*Config, error) {
 	//Парсим флаги, если они переданы
 	flagRunAddr := flag.String("a", "", "address and port to run server")
 	flagBaseURL := flag.String("b", "", "base URL for short links")
+	flagSaveInFile := flag.String("f", "", "if want to save short URL in file")
 	flag.Parse()
 
 	//Если флаг передан, перезаписываем значения из переменных окружения
-	if *flagRunAddr != "" {
+	if *flagRunAddr != "" && cfg.RunAddr == "" {
 		cfg.RunAddr = *flagRunAddr
 	}
-	if *flagBaseURL != "" {
+	if *flagBaseURL != "" && cfg.BaseURL == "" {
 		cfg.BaseURL = *flagBaseURL
+	}
+	if *flagSaveInFile != "" && cfg.SaveInFile == "" {
+		cfg.SaveInFile = *flagSaveInFile
 	}
 
 	//Устанавливаем значение по умолчанию, если ничего не задано

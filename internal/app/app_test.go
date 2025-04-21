@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -14,8 +15,11 @@ import (
 )
 
 func TestApp(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-storage-*.json")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
 	// Создаем хранилище с моком, который возвращает фиксированный ключ
-	mockStore := storage.NewMemoryStorage()
+	mockStore := storage.NewMemoryStorage(tmpFile.Name())
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		// вызываем панику, если ошибка
