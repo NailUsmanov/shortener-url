@@ -3,7 +3,6 @@ package storage
 import (
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,22 +54,27 @@ func TestStorage(t *testing.T) {
 	})
 
 	t.Run("loadLastUUID", func(t *testing.T) {
-		data, err := os.ReadFile(tmpFile.Name())
+		tmpFile, err := os.CreateTemp("", "test-uuid-*.json")
 		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
 
-		lines := strings.Split(string(data), "\n")
-		var lastUUID int
-
-		for _, line := range lines {
-			if line == "" {
-				continue
-			}
-			var record ShortURLJSON
-			err := json.Unmarshal([]byte(line), &record)
-			assert.NoError(t, err)
-			assert.Equal(t, lastUUID+1, record.UUID)
-			lastUUID = record.UUID
+		records := []ShortURLJSON{
+			{UUID: 1, ShortURL: "abc", OriginalURL: "http://first.com"},
+			{UUID: 2, ShortURL: "def", OriginalURL: "http://second.com"},
 		}
+
+		for _, r := range records {
+			data, err := json.Marshal(r)
+			require.NoError(t, err)
+			_, err = tmpFile.WriteString(string(data) + "\n")
+			require.NoError(t, err)
+		}
+		tmpFile.Close()
+
+		storage := &MemoryStorage{filePath: tmpFile.Name()}
+		storage.loadLastUUID()
+
+		assert.Equal(t, 2, storage.lastUUID) // Должно быть 2, так как это максимальный UUID
 	})
 
 	t.Run("Empty file path - memory only", func(t *testing.T) {

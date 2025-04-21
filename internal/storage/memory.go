@@ -66,7 +66,7 @@ func (s *MemoryStorage) loadLastUUID() {
 		s.lastUUID = 0
 		return
 	}
-	file, err := os.Open("ListShortURL")
+	file, err := os.Open(s.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return // Файла нет - начинаем с 1
