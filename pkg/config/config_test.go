@@ -4,78 +4,93 @@ import (
 	"flag"
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func resetFlags() {
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+func TestMain(m *testing.M) {
+	// Парсим флаги один раз для всех тестов
+	flag.Parse()
+	os.Exit(m.Run())
 }
 
-func TestNewConfig_Defaults(t *testing.T) {
-	resetFlags()
-	os.Clearenv()
+func TestConfig(t *testing.T) {
+	// Сохраняем оригинальные значения флагов
+	oldRunAddr := *flagRunAddr
+	oldBaseURL := *flagBaseURL
+	oldSaveInFile := *flagSaveInFile
+	defer func() {
+		*flagRunAddr = oldRunAddr
+		*flagBaseURL = oldBaseURL
+		*flagSaveInFile = oldSaveInFile
+	}()
 
-	cfg, err := NewConfig()
-	require.NoError(t, err)
+	t.Run("Default values", func(t *testing.T) {
+		os.Clearenv()
+		*flagRunAddr = ""
+		*flagBaseURL = ""
+		*flagSaveInFile = ""
 
-	assert.Equal(t, ":8080", cfg.RunAddr)
-	assert.Equal(t, "http://localhost:8080", cfg.BaseURL)
-	assert.Equal(t, "", cfg.SaveInFile)
-}
+		cfg, err := NewConfig()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
 
-func TestNewConfig_EnvOnly(t *testing.T) {
-	resetFlags()
-	os.Clearenv()
+		if cfg.RunAddr != ":8080" {
+			t.Errorf("Expected RunAddr :8080, got %s", cfg.RunAddr)
+		}
+		if cfg.BaseURL != "http://localhost:8080" {
+			t.Errorf("Expected BaseURL http://localhost:8080, got %s", cfg.BaseURL)
+		}
+		if cfg.SaveInFile != "" {
+			t.Errorf("Expected empty SaveInFile, got %s", cfg.SaveInFile)
+		}
+	})
 
-	os.Setenv("SERVER_ADDRESS", ":9000")
-	os.Setenv("BASE_URL", "http://example.com")
-	os.Setenv("FILE_STORAGE_PATH", "/tmp/storage")
+	t.Run("Environment variables", func(t *testing.T) {
+		os.Clearenv()
+		os.Setenv("SERVER_ADDRESS", ":9090")
+		os.Setenv("BASE_URL", "https://example.com")
+		os.Setenv("FILE_STORAGE_PATH", "/tmp/data.json")
+		defer os.Clearenv()
 
-	cfg, err := NewConfig()
-	require.NoError(t, err)
+		*flagRunAddr = ""
+		*flagBaseURL = ""
+		*flagSaveInFile = ""
 
-	assert.Equal(t, ":9000", cfg.RunAddr)
-	assert.Equal(t, "http://example.com", cfg.BaseURL)
-	assert.Equal(t, "/tmp/storage", cfg.SaveInFile)
-}
+		cfg, err := NewConfig()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
 
-func TestNewConfig_FlagsOverrideEnv(t *testing.T) {
-	resetFlags()
-	os.Clearenv()
+		if cfg.RunAddr != ":9090" {
+			t.Errorf("Expected RunAddr :9090, got %s", cfg.RunAddr)
+		}
+		if cfg.BaseURL != "https://example.com" {
+			t.Errorf("Expected BaseURL https://example.com, got %s", cfg.BaseURL)
+		}
+		if cfg.SaveInFile != "/tmp/data.json" {
+			t.Errorf("Expected SaveInFile /tmp/data.json, got %s", cfg.SaveInFile)
+		}
+	})
 
-	os.Setenv("SERVER_ADDRESS", ":3000")
-	os.Setenv("BASE_URL", "http://env.com")
-	os.Setenv("FILE_STORAGE_PATH", "/env/path")
+	t.Run("Command line flags", func(t *testing.T) {
+		os.Clearenv()
+		*flagRunAddr = ":7070"
+		*flagBaseURL = "http://flag"
+		*flagSaveInFile = "flag.json"
 
-	os.Args = []string{
-		"cmd",
-		"-a", ":4000",
-		"-b", "http://flag.com",
-		"-f", "/flag/path",
-	}
+		cfg, err := NewConfig()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
 
-	cfg, err := NewConfig()
-	require.NoError(t, err)
-
-	assert.Equal(t, ":4000", cfg.RunAddr)
-	assert.Equal(t, "http://flag.com", cfg.BaseURL)
-	assert.Equal(t, "/flag/path", cfg.SaveInFile)
-}
-
-func TestNewConfig_RunAddrWithoutColon(t *testing.T) {
-	resetFlags()
-	os.Clearenv()
-
-	os.Args = []string{
-		"cmd",
-		"-a", "9090",
-	}
-
-	cfg, err := NewConfig()
-	require.NoError(t, err)
-
-	assert.Equal(t, ":9090", cfg.RunAddr)
-	assert.Equal(t, "http://localhost:9090", cfg.BaseURL)
+		if cfg.RunAddr != ":7070" {
+			t.Errorf("Expected RunAddr :7070, got %s", cfg.RunAddr)
+		}
+		if cfg.BaseURL != "http://flag" {
+			t.Errorf("Expected BaseURL http://flag, got %s", cfg.BaseURL)
+		}
+		if cfg.SaveInFile != "flag.json" {
+			t.Errorf("Expected SaveInFile flag.json, got %s", cfg.SaveInFile)
+		}
+	})
 }

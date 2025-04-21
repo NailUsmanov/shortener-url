@@ -3,7 +3,6 @@ package config
 import (
 	"flag"
 	"fmt"
-	_ "os"
 	"strings"
 
 	"github.com/caarlos0/env/v6"
@@ -15,42 +14,42 @@ type Config struct {
 	SaveInFile string `env:"FILE_STORAGE_PATH"`
 }
 
+var (
+	flagRunAddr    = flag.String("a", "", "address and port to run server")
+	flagBaseURL    = flag.String("b", "", "base URL for short links")
+	flagSaveInFile = flag.String("f", "", "if want to save short URL in file")
+)
+
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
 
-	//Парсим переменные окружения, если есть
+	// Парсим переменные окружения
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse env: %w", err)
 	}
 
-	//Парсим флаги, если они переданы
-	flagRunAddr := flag.String("a", "", "address and port to run server")
-	flagBaseURL := flag.String("b", "", "base URL for short links")
-	flagSaveInFile := flag.String("f", "", "if want to save short URL in file")
-	flag.Parse()
-
-	//Если флаг передан, перезаписываем значения из переменных окружения
-	if *flagRunAddr != "" && cfg.RunAddr == "" {
+	// Если флаг передан, перезаписываем значения
+	if *flagRunAddr != "" {
 		cfg.RunAddr = *flagRunAddr
 	}
-	if *flagBaseURL != "" && cfg.BaseURL == "" {
+	if *flagBaseURL != "" {
 		cfg.BaseURL = *flagBaseURL
 	}
-	if *flagSaveInFile != "" && cfg.SaveInFile == "" {
+	if *flagSaveInFile != "" {
 		cfg.SaveInFile = *flagSaveInFile
 	}
 
-	//Устанавливаем значение по умолчанию, если ничего не задано
+	// Устанавливаем значение по умолчанию
 	if cfg.RunAddr == "" {
-		cfg.RunAddr = ":8080" // Полный дефолт
+		cfg.RunAddr = ":8080"
 	} else if !strings.Contains(cfg.RunAddr, ":") {
-		cfg.RunAddr = ":" + cfg.RunAddr // Добавляем двоеточие если его нет
+		cfg.RunAddr = ":" + cfg.RunAddr
 	}
 
 	if cfg.BaseURL == "" {
 		hostPort := cfg.RunAddr
 		if hostPort == ":" {
-			hostPort = ":8080" // Явно обрабатываем случай только ":"
+			hostPort = ":8080"
 		}
 		if strings.HasPrefix(hostPort, ":") {
 			hostPort = "localhost" + hostPort

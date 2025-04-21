@@ -16,6 +16,17 @@ func TestStorage(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	s := NewMemoryStorage(tmpFile.Name())
 
+	testRecord := ShortURLJSON{
+		UUID:        1,
+		ShortURL:    "test123",
+		OriginalURL: "http://test.com",
+	}
+	data, err := json.Marshal(testRecord)
+	require.NoError(t, err)
+	_, err = tmpFile.WriteString(string(data) + "\n")
+	require.NoError(t, err)
+	tmpFile.Close()
+
 	t.Run("Save and Get", func(t *testing.T) {
 		url := "http://example.com"
 		key, err := s.Save(url)
@@ -75,4 +86,18 @@ func TestStorage(t *testing.T) {
 		_, err = os.Stat("non-existent-file")
 		assert.True(t, os.IsNotExist(err))
 	})
+
+	t.Run("Load from non-existent file", func(t *testing.T) {
+		nonExistentStorage := NewMemoryStorage("non-existent-file.json")
+		assert.NotNil(t, nonExistentStorage)
+	})
+	t.Run("Generate short code uniqueness", func(t *testing.T) {
+		codes := make(map[string]bool)
+		for i := 0; i < 100; i++ {
+			code := generateShortCode()
+			assert.False(t, codes[code], "Duplicate code generated")
+			codes[code] = true
+		}
+	})
+
 }

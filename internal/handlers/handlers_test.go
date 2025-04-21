@@ -224,6 +224,43 @@ func TestCreateShortURLJSON(t *testing.T) {
 
 }
 
+func TestCreateShortURLJSONErrorCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestBody string
+		wantStatus  int
+	}{
+		{
+			name:        "Invalid JSON",
+			requestBody: `{"url": "no closing quote}`,
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:        "Empty JSON body",
+			requestBody: `{}`,
+			wantStatus:  http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := &MockStorage{data: make(map[string]string)}
+			handler := NewURLHandler(storage, "http://test", zap.NewNop().Sugar())
+
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+
+			handler.CreateShortURLJSON(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+		})
+	}
+}
+
 func TestGzipMiddleWare(t *testing.T) {
 	mockMiddleware := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -278,5 +315,26 @@ func TestGzipMiddleWare(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.JSONEq(t, expectedResponse, string(body))
+	})
+}
+
+func TestGzipMiddlewareErrorCases(t *testing.T) {
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	t.Run("Invalid gzip request", func(t *testing.T) {
+		var buf bytes.Buffer
+		// Пишем невалидные gzip данные
+		buf.Write([]byte("invalid gzip data"))
+
+		req := httptest.NewRequest(http.MethodPost, "/", &buf)
+		req.Header.Set("Content-Encoding", "gzip")
+		w := httptest.NewRecorder()
+
+		handler := GzipMiddleware(mockHandler, zap.NewNop().Sugar())
+		handler.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
 	})
 }
