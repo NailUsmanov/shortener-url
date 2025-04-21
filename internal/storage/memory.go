@@ -48,7 +48,7 @@ func (s *MemoryStorage) loadFromFile() {
 			fmt.Printf("Error parsing JSON: %v\n", err)
 			continue
 		}
-		s.data[record.Short_URL] = record.Original_URL
+		s.data[record.ShortURL] = record.OriginalURL
 		if record.Uuid > s.lastUUID {
 			s.lastUUID = record.Uuid
 		}
@@ -56,9 +56,9 @@ func (s *MemoryStorage) loadFromFile() {
 }
 
 type ShortURLJSON struct {
-	Uuid         int    `json:"uuid"`
-	Short_URL    string `json:"short_url"`
-	Original_URL string `json:"original_url"`
+	Uuid        int    `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }
 
 func (s *MemoryStorage) loadLastUUID() {
@@ -110,9 +110,9 @@ func (s *MemoryStorage) Save(url string) (string, error) {
 
 		s.lastUUID++
 		ShortStr := ShortURLJSON{
-			Uuid:         s.lastUUID,
-			Short_URL:    key,
-			Original_URL: url,
+			Uuid:        s.lastUUID,
+			ShortURL:    key,
+			OriginalURL: url,
 		}
 		err = json.NewEncoder(file).Encode(ShortStr)
 		if err != nil {

@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,11 +34,45 @@ func TestStorage(t *testing.T) {
 	})
 
 	t.Run("Restore from file", func(t *testing.T) {
+		testURL := "http://example.com"
+		key, err := s.Save(testURL)
+		require.NoError(t, err)
 		newStorage := NewMemoryStorage(tmpFile.Name())
+		val, err := newStorage.Get(key)
+		require.NoError(t, err)
+		assert.Equal(t, testURL, val)
+	})
 
-		url := "http://example.com"
-		val, err := newStorage.Get("expected_key")
+	t.Run("loadLastUUID", func(t *testing.T) {
+		data, err := os.ReadFile(tmpFile.Name())
+		require.NoError(t, err)
+
+		lines := strings.Split(string(data), "\n")
+		var lastUUID int
+
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+			var record ShortURLJSON
+			err := json.Unmarshal([]byte(line), &record)
+			assert.NoError(t, err)
+			assert.Equal(t, lastUUID+1, record.Uuid)
+			lastUUID = record.Uuid
+		}
+	})
+
+	t.Run("Empty file path - memory only", func(t *testing.T) {
+		memStorage := NewMemoryStorage("") // без файла
+		key, err := memStorage.Save("https://memory-only.com")
 		assert.NoError(t, err)
-		assert.Equal(t, url, val)
+
+		val, err := memStorage.Get(key)
+		assert.NoError(t, err)
+		assert.Equal(t, "https://memory-only.com", val)
+
+		// Проверяем что файл не создавался
+		_, err = os.Stat("non-existent-file")
+		assert.True(t, os.IsNotExist(err))
 	})
 }
