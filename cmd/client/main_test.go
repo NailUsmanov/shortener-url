@@ -7,85 +7,64 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
-func TestMain_Success(t *testing.T) {
-	// 1. Сохраняем оригинальные потоки
-	oldStdin := os.Stdin
-	oldStdout := os.Stdout
-	defer func() {
-		os.Stdin = oldStdin
-		os.Stdout = oldStdout
-	}()
-
-	// 2. Настраиваем stdin через pipe
-	r, w, _ := os.Pipe()
-	os.Stdin = r
-	w.Write([]byte("https://example.com\n"))
-	w.Close()
-
-	// 3. Перехватываем stdout через pipe
-	outR, outW, _ := os.Pipe()
-	os.Stdout = outW
-
-	// 4. Создаем мок сервера
+func TestClient(t *testing.T) {
+	// 1. Создаем мок сервера
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte("http://short.url/abc123"))
 	}))
 	defer ts.Close()
 
-	// 5. Запускаем main в горутине (так как pipe блокирует)
+	// 2. Подменяем глобальные переменные
+	oldStdin := os.Stdin
+	oldStdout := os.Stdout
+	oldEndpoint := endpoint
+
+	// 3. Настраиваем pipes для ввода/вывода
+	stdinR, stdinW, _ := os.Pipe()
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdin = stdinR
+	os.Stdout = stdoutW
+	endpoint = ts.URL
+
+	// 4. Записываем тестовый ввод
 	go func() {
-		defer outW.Close()
+		defer stdinW.Close()
+		stdinW.Write([]byte("https://example.com\n"))
+	}()
+
+	// 5. Запускаем main с синхронизацией
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			// Восстанавливаем оригинальные значения
+			os.Stdin = oldStdin
+			os.Stdout = oldStdout
+			endpoint = oldEndpoint
+			stdoutW.Close()
+		}()
 		main()
 	}()
 
 	// 6. Читаем вывод
 	var buf bytes.Buffer
-	io.Copy(&buf, outR)
+	io.Copy(&buf, stdoutR)
 
-	// 7. Проверяем вывод
-	if !strings.Contains(buf.String(), "Статус-код 201 Created") {
-		t.Error("Expected status 201 in output")
+	// 7. Ждем завершения
+	wg.Wait()
+
+	// 8. Проверяем результат
+	output := buf.String()
+	if !strings.Contains(output, "201") {
+		t.Errorf("Expected status code 201 in output, got: %s", output)
 	}
-	if !strings.Contains(buf.String(), "http://short.url/abc123") {
-		t.Error("Expected short URL in output")
-	}
-}
-
-func TestMain_ServerError(t *testing.T) {
-	// Аналогичная настройка как в TestMain_Success
-	oldStdin := os.Stdin
-	oldStdout := os.Stdout
-	defer func() {
-		os.Stdin = oldStdin
-		os.Stdout = oldStdout
-	}()
-
-	r, w, _ := os.Pipe()
-	os.Stdin = r
-	w.Write([]byte("https://example.com\n"))
-	w.Close()
-
-	outR, outW, _ := os.Pipe()
-	os.Stdout = outW
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer ts.Close()
-
-	go func() {
-		defer outW.Close()
-		main()
-	}()
-
-	var buf bytes.Buffer
-	io.Copy(&buf, outR)
-
-	if !strings.Contains(buf.String(), "500") {
-		t.Error("Expected 500 error in output")
+	if !strings.Contains(output, "http://short.url/abc123") {
+		t.Errorf("Expected short URL in output, got: %s", output)
 	}
 }

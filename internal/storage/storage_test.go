@@ -57,8 +57,8 @@ func TestStorage(t *testing.T) {
 			var record ShortURLJSON
 			err := json.Unmarshal([]byte(line), &record)
 			assert.NoError(t, err)
-			assert.Equal(t, lastUUID+1, record.Uuid)
-			lastUUID = record.Uuid
+			assert.Equal(t, lastUUID+1, record.UUID)
+			lastUUID = record.UUID
 		}
 	})
 
