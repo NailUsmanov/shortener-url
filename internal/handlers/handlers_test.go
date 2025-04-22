@@ -335,8 +335,9 @@ func TestGzipMiddlewareErrorCases(t *testing.T) {
 		handler := GzipMiddleware(mockHandler, zap.NewNop().Sugar())
 		handler.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
 		res := w.Result()
 		defer res.Body.Close()
+		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
+
 	})
 }

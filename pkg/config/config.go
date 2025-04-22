@@ -21,6 +21,7 @@ var (
 )
 
 func NewConfig() (*Config, error) {
+	flag.Parse()
 	cfg := &Config{}
 
 	// Парсим переменные окружения

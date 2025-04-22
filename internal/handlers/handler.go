@@ -162,6 +162,13 @@ func WithLoggingRedirect(h http.Handler, sugar *zap.SugaredLogger) http.HandlerF
 // POST JSON api/shorten
 func (h *URLHandler) CreateShortURLJSON(w http.ResponseWriter, r *http.Request) {
 
+	contentType := r.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		h.sugar.Error("Invalid content type:", contentType)
+		http.Error(w, "Invalid content type", http.StatusBadRequest)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
 		return
@@ -193,7 +200,7 @@ func (h *URLHandler) CreateShortURLJSON(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var resp models.Response
-	resp.Res = h.baseURL + "/" + key
+	resp.Result = h.baseURL + "/" + key
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

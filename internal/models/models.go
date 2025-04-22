@@ -5,5 +5,5 @@ type RequestURL struct {
 }
 
 type Response struct {
-	Res string `json:"result"`
+	Result string `json:"result"`
 }
