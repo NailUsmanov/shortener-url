@@ -337,7 +337,7 @@ func TestGzipMiddlewareErrorCases(t *testing.T) {
 
 		res := w.Result()
 		defer res.Body.Close()
-		assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
+		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 
 	})
 }
