@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/handlers"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/go-chi/chi"
 	"go.uber.org/zap"
@@ -37,20 +38,17 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 }
 
 func (a *App) setupRoutes() {
+	a.router.Use(middleware.LoggingMiddleWare(a.sugar),
+		middleware.GzipMiddleware,
+	)
 	// POST /api/shorten
-	createHandlerJSON := http.HandlerFunc(a.handler.CreateShortURLJSON)
-	gzipCreateShortURLJSON := handlers.GzipMiddleware(createHandlerJSON, a.sugar)
-	a.router.Post("/api/shorten", handlers.WithLogging(gzipCreateShortURLJSON, a.sugar))
+	a.router.Post("/api/shorten", a.handler.CreateShortURLJSON)
 
 	// POST
-	createShortURLHandler := http.HandlerFunc(a.handler.CreateShortURL)
-	gzipShortURLHandler := handlers.GzipMiddleware(createShortURLHandler, a.sugar)
-	a.router.Post("/", handlers.WithLogging(gzipShortURLHandler, a.sugar))
+	a.router.Post("/", a.handler.CreateShortURL)
 
 	// GET
-	redirectHandler := http.HandlerFunc(a.handler.Redirect)
-	gzipRedirectHandler := handlers.GzipMiddleware(redirectHandler, a.sugar)
-	a.router.Get("/{id}", handlers.WithLoggingRedirect(gzipRedirectHandler, a.sugar))
+	a.router.Get("/{id}", a.handler.Redirect)
 
 }
 
