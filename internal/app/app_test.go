@@ -19,7 +19,7 @@ func TestApp(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	// Создаем хранилище с моком, который возвращает фиксированный ключ
-	mockStore := storage.NewMemoryStorage(tmpFile.Name())
+	mockStore := storage.NewFileStorage(tmpFile.Name())
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		// вызываем панику, если ошибка
