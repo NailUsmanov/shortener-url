@@ -2,6 +2,7 @@ package handlers
 
 import (
 	_ "bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -30,6 +31,16 @@ func NewURLHandler(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) 
 
 // POST
 func (h *URLHandler) CreateShortURL(w http.ResponseWriter, r *http.Request) {
+
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			http.Error(w, "failed to decompress gzip body", http.StatusBadRequest)
+			return
+		}
+		defer gz.Close()
+		r.Body = gz
+	}
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
@@ -84,8 +95,19 @@ func (h *URLHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 // POST JSON api/shorten
 func (h *URLHandler) CreateShortURLJSON(w http.ResponseWriter, r *http.Request) {
 
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gz, err := gzip.NewReader(r.Body)
+		if err != nil {
+			http.Error(w, "failed to decompress gzip body", http.StatusBadRequest)
+			return
+		}
+		defer gz.Close()
+		r.Body = gz
+	}
+
 	contentType := r.Header.Get("Content-Type")
-	if !strings.Contains(contentType, "application/json") {
+	if !strings.Contains(contentType, "application/json") &&
+		!strings.Contains(contentType, "application/x-gzip") {
 		h.sugar.Error("Invalid content type:", contentType)
 		http.Error(w, "Invalid content type", http.StatusBadRequest)
 		return

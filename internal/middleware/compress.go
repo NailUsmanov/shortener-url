@@ -77,25 +77,27 @@ func (c *CompressReader) Close() error {
 
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		contentType := r.Header.Get("Content-Type")
-		isJSON := strings.Contains(contentType, "application/json")
-
 		// Распаковка входящих данных
-		if isJSON && r.Header.Get("Content-Encoding") == "gzip" {
-			cr, err := NewCompressReader(r.Body)
+		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+			// cr, err := NewCompressReader(r.Body)
+			cr, err := gzip.NewReader(r.Body)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+				http.Error(w, "Invalid gzip data", http.StatusBadRequest)
 				return
 			}
 
 			r.Body = cr
 			defer cr.Close()
+
+			if strings.Contains(r.Header.Get("Content-Type"), "application/x-gzip") {
+				r.Header.Set("Content-Type", "application/json")
+			}
 		}
 
 		// Подготовка сжатия исходящих данных
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		if isJSON && acceptEncoding != "" && strings.Contains(acceptEncoding, "gzip") {
+
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
 			cw := NewCompressWriter(w)
 			defer cw.Close()
 			w = cw

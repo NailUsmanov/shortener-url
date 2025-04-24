@@ -14,6 +14,59 @@ import (
 )
 
 func TestGzipMiddleWare(t *testing.T) {
+	tests := []struct {
+		name            string
+		contentEncoding string
+		contentType     string
+		body            string
+		wantStatus      int
+	}{
+		{
+			name:            "gzip json request",
+			contentEncoding: "gzip",
+			contentType:     "application/json",
+			body:            `{"url":"http://example.com"}`,
+			wantStatus:      http.StatusCreated,
+		},
+		{
+			name:            "gzip x-gzip request",
+			contentEncoding: "gzip",
+			contentType:     "application/x-gzip",
+			body:            `{"url":"http://example.com"}`,
+			wantStatus:      http.StatusCreated,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Создаем gzip тело
+			var buf bytes.Buffer
+			gw := gzip.NewWriter(&buf)
+			gw.Write([]byte(tt.body))
+			gw.Close()
+
+			req := httptest.NewRequest("POST", "/api/shorten", &buf)
+			req.Header.Set("Content-Encoding", tt.contentEncoding)
+			req.Header.Set("Content-Type", tt.contentType)
+
+			// Тестовый обработчик
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				w.Write([]byte(`{"result":"short_url"}`))
+			})
+
+			rec := httptest.NewRecorder()
+			GzipMiddleware(handler).ServeHTTP(rec, req)
+
+			res := rec.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+			assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
+		})
+	}
+
 	mockMiddleware := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -118,7 +171,7 @@ func TestGzipMiddlewareErrorCases(t *testing.T) {
 
 		res := w.Result()
 		defer res.Body.Close()
-		assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 
 	})
 
