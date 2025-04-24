@@ -99,6 +99,7 @@ func TestGzipMiddleWare(t *testing.T) {
 
 func TestGzipMiddlewareErrorCases(t *testing.T) {
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Handler should not be called on gzip decompression error")
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -109,8 +110,9 @@ func TestGzipMiddlewareErrorCases(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/", &buf)
 		req.Header.Set("Content-Encoding", "gzip")
-		w := httptest.NewRecorder()
+		req.Header.Set("Content-Type", "application/json")
 
+		w := httptest.NewRecorder()
 		handler := GzipMiddleware(mockHandler)
 		handler.ServeHTTP(w, req)
 
