@@ -79,29 +79,26 @@ func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Распаковка входящих данных
 		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-			// cr, err := NewCompressReader(r.Body)
-			cr, err := gzip.NewReader(r.Body)
+			cr, err := NewCompressReader(r.Body)
 			if err != nil {
-				http.Error(w, "Invalid gzip data", http.StatusBadRequest)
+				http.Error(w, "failed to decompress gzip body", http.StatusBadRequest)
 				return
 			}
-
-			r.Body = cr
 			defer cr.Close()
+			r.Body = cr
 
-			if strings.Contains(r.Header.Get("Content-Type"), "application/x-gzip") {
-				r.Header.Set("Content-Type", "application/json")
+			if r.Header.Get("Content-Type") == "application/x-gzip" {
+				r.Header.Set("Content-Type", "text/plain")
 			}
 		}
 
 		// Подготовка сжатия исходящих данных
-
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			w.Header().Set("Content-Encoding", "gzip")
 			cw := NewCompressWriter(w)
 			defer cw.Close()
 			w = cw
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }

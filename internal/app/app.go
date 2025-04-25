@@ -38,10 +38,8 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 }
 
 func (a *App) setupRoutes() {
-	a.router.Use(
-		middleware.GzipMiddleware,
-		middleware.LoggingMiddleWare(a.sugar),
-	)
+	a.router.Use(middleware.GzipMiddleware)
+	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
 	// POST /api/shorten
 	a.router.Post("/api/shorten", a.handler.CreateShortURLJSON)
 
