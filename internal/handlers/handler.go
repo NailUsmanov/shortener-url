@@ -25,8 +25,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 		// Проверяем Content-Type
 		contentType := r.Header.Get("Content-Type")
-		if !strings.HasPrefix(contentType, "text/plain") {
-			sugar.Errorf("Invalid content type: %s", contentType)
+		if contentType != "" && contentType != "text/plain" {
 			http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
 			return
 		}
@@ -40,7 +39,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 
 		// Проверяем чтобы тело было не 0
 		if len(body) == 0 {
-			http.Error(w, "Empty request body", http.StatusBadRequest)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
@@ -105,7 +104,7 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		}
 
 		if len(req.URL) == 0 {
-			http.Error(w, "Empty request body", http.StatusBadRequest)
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 

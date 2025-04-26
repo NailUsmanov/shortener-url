@@ -247,7 +247,10 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := &MockStorage{data: make(map[string]string)}
-			handler := NewCreateShortURLJSON(storage, "http://test", nil)
+			logger := zap.NewNop()
+
+			defer logger.Sync()
+			handler := NewCreateShortURLJSON(storage, "http://test", logger.Sugar())
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
