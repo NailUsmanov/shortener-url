@@ -16,6 +16,7 @@ import (
 
 func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		sugar.Infof("Request headers: %+v", r.Header)
 
 		// Проверяем метод
 		if r.Method != http.MethodPost {
@@ -24,11 +25,12 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 		// Проверяем Content-Type
 		contentType := r.Header.Get("Content-Type")
-		if !strings.Contains(contentType, "text/plain") {
+		if !strings.HasPrefix(contentType, "text/plain") {
 			sugar.Errorf("Invalid content type: %s", contentType)
 			http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
 			return
 		}
+		sugar.Infof("Content-Type: %s", r.Header.Get("Content-Type"))
 		// Читаем тело запроса
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -42,7 +44,9 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			return
 		}
 
+		sugar.Infof("Received request body: %q", body)
 		rawURL := strings.TrimSpace(string(body))
+		sugar.Infof("Received raw URL: %q", rawURL)
 
 		// Проверяем валидность URL
 		_, err = url.ParseRequestURI(rawURL)

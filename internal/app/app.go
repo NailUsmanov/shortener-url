@@ -39,7 +39,7 @@ func (a *App) setupRoutes() {
 	a.router.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
 
 	// POST
-	a.router.Post("/", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
+	a.router.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))
 
 	// GET
 	a.router.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
