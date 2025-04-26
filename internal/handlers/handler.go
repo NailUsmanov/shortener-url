@@ -25,7 +25,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 		// Проверяем Content-Type
 		contentType := r.Header.Get("Content-Type")
-		if contentType != "" && contentType != "text/plain" {
+		if contentType != "" && !strings.HasPrefix(contentType, "text/plain") {
 			http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
 			return
 		}
