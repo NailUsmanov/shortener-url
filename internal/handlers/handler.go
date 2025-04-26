@@ -16,6 +16,9 @@ import (
 
 func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Content-Type", "text/plain")
+
 		// Проверяем метод
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)

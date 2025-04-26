@@ -83,6 +83,10 @@ func TestCreateShortURL(t *testing.T) {
 			res := w.Result()
 			defer res.Body.Close()
 
+			if res.Body == nil {
+				t.Fatal("Response body is nil")
+			}
+
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 
 			if tt.wantStatus == http.StatusCreated {
