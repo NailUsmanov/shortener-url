@@ -73,12 +73,12 @@ func TestCreateShortURL(t *testing.T) {
 			// делаем регистратор SugaredLogger
 			sugar := logger.Sugar()
 
-			handler := NewURLHandler(storage, "http://test", sugar)
+			handler := NewCreateShortURL(storage, "http://test", sugar)
 
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.requestBody))
 			w := httptest.NewRecorder()
 
-			handler.CreateShortURL(w, req)
+			handler(w, req)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -149,10 +149,10 @@ func TestURLHandler_Redirect(t *testing.T) {
 			// делаем регистратор SugaredLogger
 			sugar := logger.Sugar()
 
-			handler := NewURLHandler(storage, "http://test", sugar)
+			handler := NewRedirect(storage, sugar)
 
 			router := chi.NewRouter()
-			router.Get("/{id}", handler.Redirect)
+			router.Get("/{id}", handler)
 
 			req := httptest.NewRequest(http.MethodGet, "/"+tt.urlParam, nil)
 			w := httptest.NewRecorder()
@@ -193,7 +193,7 @@ func TestCreateShortURLJSON(t *testing.T) {
 
 			defer logger.Sync()
 
-			handler := NewURLHandler(storage, "http://test", logger.Sugar())
+			handler := NewCreateShortURLJSON(storage, "http://test", logger.Sugar())
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
 
@@ -201,7 +201,7 @@ func TestCreateShortURLJSON(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			handler.CreateShortURLJSON(w, req)
+			handler(w, req)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -243,13 +243,13 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := &MockStorage{data: make(map[string]string)}
-			handler := NewURLHandler(storage, "http://test", zap.NewNop().Sugar())
+			handler := NewCreateShortURLJSON(storage, "http://test", nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
-			handler.CreateShortURLJSON(w, req)
+			handler(w, req)
 
 			res := w.Result()
 			defer res.Body.Close()

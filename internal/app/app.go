@@ -10,26 +10,20 @@ import (
 	"go.uber.org/zap"
 )
 
-type Storage interface {
-	Save(url string) (string, error)
-	Get(key string) (string, error)
-}
-
 type App struct {
 	router  *chi.Mux
-	storage Storage
-	handler *handlers.URLHandler
+	storage storage.Storage
+	baseURL string
 	sugar   *zap.SugaredLogger
 }
 
 func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 	r := chi.NewRouter()
-	handler := handlers.NewURLHandler(s, baseURL, sugar)
 
 	app := &App{
 		router:  r, //разыменовываем указатель
 		storage: s,
-		handler: handler,
+		baseURL: baseURL,
 		sugar:   sugar,
 	}
 
@@ -38,16 +32,17 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 }
 
 func (a *App) setupRoutes() {
+	// MiddleWare
 	a.router.Use(middleware.GzipMiddleware)
 	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
 	// POST /api/shorten
-	a.router.Post("/api/shorten", a.handler.CreateShortURLJSON)
+	a.router.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
 
 	// POST
-	a.router.Post("/", a.handler.CreateShortURL)
+	a.router.Post("/", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
 
 	// GET
-	a.router.Get("/{id}", a.handler.Redirect)
+	a.router.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
 
 }
 
