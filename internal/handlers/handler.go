@@ -17,11 +17,16 @@ import (
 func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		w.Header().Set("Content-Type", "text/plain")
-
 		// Проверяем метод
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
+			return
+		}
+		// Проверяем Content-Type
+		contentType := r.Header.Get("Content-Type")
+		if !strings.Contains(contentType, "text/plain") {
+			sugar.Errorf("Invalid content type: %s", contentType)
+			http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
 			return
 		}
 		// Читаем тело запроса
@@ -33,11 +38,11 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 
 		// Проверяем чтобы тело было не 0
 		if len(body) == 0 {
-			http.Error(w, "Empty reques body", http.StatusBadRequest)
+			http.Error(w, "Empty request body", http.StatusBadRequest)
 			return
 		}
 
-		rawURL := string(body)
+		rawURL := strings.TrimSpace(string(body))
 
 		// Проверяем валидность URL
 		_, err = url.ParseRequestURI(rawURL)
@@ -55,6 +60,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 
 		// Возвращаем ответ
+		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
 		if _, err := w.Write([]byte(baseURL + "/" + key)); err != nil {
 			sugar.Errorf("Failed to write response: %v", err)
@@ -80,14 +86,6 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 
 func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Проверяем контент тайп
-		contentType := r.Header.Get("Content-Type")
-		if !strings.Contains(contentType, "application/json") &&
-			!strings.Contains(contentType, "application/x-gzip") {
-			sugar.Error("Invalid content type:", contentType)
-			http.Error(w, "Invalid content type:", http.StatusBadRequest)
-			return
-		}
 
 		// Проверяем метод
 		if r.Method != http.MethodPost {
