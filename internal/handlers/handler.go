@@ -26,7 +26,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 		// Читаем тело запроса
 		body, err := io.ReadAll(r.Body)
-		if err != nil || len(body) == 0 {
+		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
@@ -49,14 +49,16 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		// Сохраняем URL
 		key, err := s.Save(rawURL)
 		if err != nil {
+			sugar.Errorf("Failed to save URL: %v", err)
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
 			return
 		}
 
 		// Возвращаем ответ
-		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(baseURL + "/" + key))
+		if _, err := w.Write([]byte(baseURL + "/" + key)); err != nil {
+			sugar.Errorf("Failed to write response: %v", err)
+		}
 	}
 }
 
