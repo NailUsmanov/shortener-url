@@ -4,29 +4,27 @@ import (
 	"net/http"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/handlers"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/go-chi/chi"
+	"go.uber.org/zap"
 )
-
-type Storage interface {
-	Save(url string) (string, error)
-	Get(key string) (string, error)
-}
 
 type App struct {
 	router  *chi.Mux
-	storage Storage
-	handler *handlers.URLHandler
+	storage storage.Storage
+	baseURL string
+	sugar   *zap.SugaredLogger
 }
 
-func NewApp(s storage.Storage, baseURL string) *App {
+func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 	r := chi.NewRouter()
-	handler := handlers.NewURLHandler(s, baseURL)
 
 	app := &App{
 		router:  r, //разыменовываем указатель
 		storage: s,
-		handler: handler,
+		baseURL: baseURL,
+		sugar:   sugar,
 	}
 
 	app.setupRoutes()
@@ -34,8 +32,18 @@ func NewApp(s storage.Storage, baseURL string) *App {
 }
 
 func (a *App) setupRoutes() {
-	a.router.Post("/", a.handler.CreateShortURL)
-	a.router.Get("/{id}", a.handler.Redirect)
+	// MiddleWare
+	a.router.Use(middleware.GzipMiddleware)
+	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
+	// POST /api/shorten
+	a.router.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
+
+	// POST
+	a.router.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))
+
+	// GET
+	a.router.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
+
 }
 
 func (a *App) Run(addr string) error {

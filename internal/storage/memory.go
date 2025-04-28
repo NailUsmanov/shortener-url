@@ -23,6 +23,7 @@ func (s *MemoryStorage) Save(url string) (string, error) {
 
 	key := generateShortCode()
 	s.data[key] = url
+
 	return key, nil
 
 }

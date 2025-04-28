@@ -10,8 +10,11 @@ import (
 	"strings"
 )
 
+// Глобальная переменная endpoint
+var endpoint = "http://localhost:8080/"
+
 func main() {
-	endpoint := "http://localhost:8080/"
+	// Убрали локальное объявление endpoint!
 	// контейнер данных для запроса
 	data := url.Values{}
 	// приглашение в консоли
@@ -29,8 +32,6 @@ func main() {
 	// добавляем HTTP-клиент
 	client := &http.Client{}
 	// пишем запрос
-	// запрос методом POST должен, помимо заголовков, содержать тело
-	// тело должно быть источником потокового чтения io.Reader
 	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		panic(err)

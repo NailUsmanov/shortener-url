@@ -4,19 +4,33 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestApp(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-storage-*.json")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
 	// Создаем хранилище с моком, который возвращает фиксированный ключ
-	mockStore := storage.NewMemoryStorage()
+	mockStore := storage.NewFileStorage(tmpFile.Name())
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		// вызываем панику, если ошибка
+		panic(err)
+	}
+	defer logger.Sync()
 
-	app := NewApp(mockStore, "http://test")
+	// делаем регистратор SugaredLogger
+	sugar := logger.Sugar()
+
+	app := NewApp(mockStore, "http://test", sugar)
 
 	t.Run("Test routes", func(t *testing.T) {
 		// 1. Тестируем создание короткой ссылки
