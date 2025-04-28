@@ -27,7 +27,14 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	store := storage.NewFileStorage(cfg.SaveInFile)
+	var store storage.Storage
+	if cfg.SaveInFile != "" {
+		store = storage.NewFileStorage(cfg.SaveInFile)
+		sugar.Info("Using file storage")
+	} else {
+		store = storage.NewMemoryStorage()
+		sugar.Info("Using in-memory storage")
+	}
 
 	application := app.NewApp(store, cfg.BaseURL, sugar)
 
