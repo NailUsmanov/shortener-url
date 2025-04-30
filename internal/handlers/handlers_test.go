@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -31,6 +32,10 @@ func (m *MockStorage) Get(key string) (string, error) {
 		return url, nil
 	}
 	return "", errors.New("URL not found")
+}
+
+func (m *MockStorage) Ping(ctx context.Context) error {
+	return nil
 }
 
 func TestCreateShortURL(t *testing.T) {

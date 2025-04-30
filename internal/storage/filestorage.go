@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -92,4 +93,15 @@ func (f *FileStorage) loadFromFile() {
 			f.lastUUID = record.UUID
 		}
 	}
+}
+
+func (f *FileStorage) Ping(ctx context.Context) error {
+	// Проверяем отмену контекста
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// Проверяем доступность файла
+	_, err := os.Stat(f.filePath)
+	return err
 }

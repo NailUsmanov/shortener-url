@@ -87,6 +87,17 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 	}
 }
 
+func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := s.Ping(r.Context()); err != nil {
+			sugar.Errorf("Failed to open DataBase: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
 func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 

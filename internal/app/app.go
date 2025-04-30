@@ -44,6 +44,9 @@ func (a *App) setupRoutes() {
 	// GET
 	a.router.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
 
+	// GET PING
+	a.router.Get("/ping", handlers.NewPingHandler(a.storage, a.sugar))
+
 }
 
 func (a *App) Run(addr string) error {

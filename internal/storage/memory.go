@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -38,6 +39,10 @@ func (s *MemoryStorage) Get(key string) (string, error) {
 	}
 
 	return url, nil
+}
+
+func (s *MemoryStorage) Ping(ctx context.Context) error {
+	return ctx.Err()
 }
 
 func generateShortCode() string {

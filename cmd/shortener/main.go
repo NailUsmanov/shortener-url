@@ -31,6 +31,12 @@ func main() {
 	if cfg.SaveInFile != "" {
 		store = storage.NewFileStorage(cfg.SaveInFile)
 		sugar.Info("Using file storage")
+	} else if cfg.DataBase != "" {
+		store, err := storage.NewDataBaseStorage(cfg.DataBase)
+		if err != nil {
+			log.Fatalf("Failed to load DataBase: %v", err)
+		}
+		defer store.Close()
 	} else {
 		store = storage.NewMemoryStorage()
 		sugar.Info("Using in-memory storage")
