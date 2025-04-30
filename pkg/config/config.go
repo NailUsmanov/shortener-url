@@ -16,10 +16,11 @@ type Config struct {
 }
 
 var (
-	flagRunAddr    = flag.String("a", "", "address and port to run server")
-	flagBaseURL    = flag.String("b", "", "base URL for short links")
-	flagSaveInFile = flag.String("f", "", "if want to save short URL in file")
-	flagDataBase   = flag.String("d", "", "if want to save short URL in DataBase")
+	flagRunAddr      = flag.String("a", "", "address and port to run server")
+	flagBaseURL      = flag.String("b", "", "base URL for short links")
+	flagSaveInFile   = flag.String("f", "", "if want to save short URL in file")
+	flagDataBase     = flag.String("d", "", "if want to save short URL in DataBase")
+	flagDataBaseLong = flag.String("database-dsn", "", "DSN to connect to the database")
 )
 
 func NewConfig() (*Config, error) {
@@ -42,7 +43,9 @@ func NewConfig() (*Config, error) {
 		cfg.SaveInFile = *flagSaveInFile
 	}
 
-	if *flagDataBase != "" {
+	if *flagDataBaseLong != "" {
+		cfg.DataBase = *flagDataBaseLong
+	} else if *flagDataBase != "" {
 		cfg.DataBase = *flagDataBase
 	}
 

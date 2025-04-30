@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -34,6 +35,15 @@ func (d *DataBaseStorage) Save(url string) (string, error) {
 		return "", err
 	}
 	return key, nil
+}
+
+func (d *DataBaseStorage) Get(key string) (string, error) {
+	url, exists := d.memory.data[key]
+	if !exists {
+		return "", fmt.Errorf("URL not found")
+	}
+
+	return url, nil
 }
 
 func (d *DataBaseStorage) Close() {

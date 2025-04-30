@@ -101,7 +101,5 @@ func (f *FileStorage) Ping(ctx context.Context) error {
 		return err
 	}
 
-	// Проверяем доступность файла
-	_, err := os.Stat(f.filePath)
-	return err
+	return nil
 }
