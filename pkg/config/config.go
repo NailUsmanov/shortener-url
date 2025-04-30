@@ -12,7 +12,7 @@ type Config struct {
 	RunAddr    string `env:"SERVER_ADDRESS" envDefault:":8080"`
 	BaseURL    string `env:"BASE_URL"`
 	SaveInFile string `env:"FILE_STORAGE_PATH"`
-	DataBase   string `env:"DATABASE_DSN`
+	DataBase   string `env:"DATABASE_DSN"`
 }
 
 var (
