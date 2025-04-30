@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -42,5 +43,8 @@ func (d *DataBaseStorage) Close() {
 }
 
 func (d *DataBaseStorage) Ping(ctx context.Context) error {
+	if d == nil || d.db == nil {
+		return fmt.Errorf("database connection is not initialized")
+	}
 	return d.db.PingContext(ctx)
 }

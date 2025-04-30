@@ -28,7 +28,6 @@ func main() {
 	}
 
 	var store storage.Storage
-	var dbStorage *storage.DataBaseStorage
 
 	if cfg.SaveInFile != "" {
 		store = storage.NewFileStorage(cfg.SaveInFile)
@@ -38,7 +37,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to load DataBase: %v", err)
 		}
-		store = dbStorage
 
 	} else {
 		store = storage.NewMemoryStorage()
@@ -48,8 +46,8 @@ func main() {
 	application := app.NewApp(store, cfg.BaseURL, sugar)
 
 	// Закрываем соединение только для БД
-	if store != nil && cfg.DataBase != "" {
-		defer dbStorage.Close()
+	if dbStore, ok := store.(*storage.DataBaseStorage); ok {
+		defer dbStore.Close()
 	}
 
 	if err := application.Run(cfg.RunAddr); err != nil {
