@@ -21,13 +21,13 @@ type MockStorage struct {
 	data map[string]string
 }
 
-func (m *MockStorage) Save(url string) (string, error) {
+func (m *MockStorage) Save(ctx context.Context, url string) (string, error) {
 	key := "mock123"
 	m.data[key] = url
 	return key, nil
 }
 
-func (m *MockStorage) Get(key string) (string, error) {
+func (m *MockStorage) Get(ctx context.Context, key string) (string, error) {
 	if url, exists := m.data[key]; exists {
 		return url, nil
 	}

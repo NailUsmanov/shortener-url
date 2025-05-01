@@ -31,8 +31,13 @@ type ShortURLJSON struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func (f *FileStorage) Save(url string) (string, error) {
-	key, err := f.memory.Save(url)
+func (f *FileStorage) Save(ctx context.Context, url string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	key, err := f.memory.Save(ctx, url)
 	if err != nil {
 		return "", err
 	}
@@ -44,8 +49,13 @@ func (f *FileStorage) Save(url string) (string, error) {
 	return key, nil
 }
 
-func (f *FileStorage) Get(key string) (string, error) {
-	return f.memory.Get(key)
+func (f *FileStorage) Get(ctx context.Context, key string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	return f.memory.Get(ctx, key)
 }
 
 // Доп метод для сохранения в файл

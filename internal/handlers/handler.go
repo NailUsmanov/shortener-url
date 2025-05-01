@@ -55,7 +55,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 
 		// Сохраняем URL
-		key, err := s.Save(rawURL)
+		key, err := s.Save(r.Context(), rawURL)
 		if err != nil {
 			sugar.Errorf("Failed to save URL: %v", err)
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
@@ -76,7 +76,7 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 		// 1. Получаем ID из URL
 		key := chi.URLParam(r, "id")
 		// 2. Ищем оригинальный URL
-		url, err := s.Get(key)
+		url, err := s.Get(r.Context(), key)
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -127,7 +127,7 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		}
 
 		// Сохраняем URL
-		key, err := s.Save(req.URL)
+		key, err := s.Save(r.Context(), req.URL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

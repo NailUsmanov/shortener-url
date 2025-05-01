@@ -18,7 +18,13 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
-func (s *MemoryStorage) Save(url string) (string, error) {
+func (s *MemoryStorage) Save(ctx context.Context, url string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -29,7 +35,13 @@ func (s *MemoryStorage) Save(url string) (string, error) {
 
 }
 
-func (s *MemoryStorage) Get(key string) (string, error) {
+func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
