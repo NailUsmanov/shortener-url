@@ -113,3 +113,18 @@ func (f *FileStorage) Ping(ctx context.Context) error {
 
 	return nil
 }
+
+func (s *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+	// Проверяем, не отменен ли контекст
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Заглушка: просто возвращаем фейковые ключи
+	keys := make([]string, len(urls))
+	for i := range keys {
+		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем фейковый ключ
+	}
+
+	return keys, nil
+}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -36,6 +37,16 @@ func (m *MockStorage) Get(ctx context.Context, key string) (string, error) {
 
 func (m *MockStorage) Ping(ctx context.Context) error {
 	return nil
+}
+
+func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+	keys := make([]string, len(urls))
+	for i, url := range urls {
+		key := "mock123_" + strconv.Itoa(i)
+		m.data[key] = url
+		keys[i] = key
+	}
+	return keys, nil
 }
 
 func TestCreateShortURL(t *testing.T) {
@@ -267,6 +278,64 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 			defer res.Body.Close()
 
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
+		})
+	}
+}
+
+func TestCreateBatchJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestBody string
+		wantStatus  int
+		wantBody    string
+	}{
+		{
+			name: "Valid test",
+			requestBody: `[
+                {"correlation_id": "1", "original_url": "http://test1.com"},
+                {"correlation_id": "2", "original_url": "http://test2.com"}
+            ]`,
+			wantStatus: http.StatusCreated,
+			wantBody: `[
+                {"correlation_id": "1", "short_url": "http://test/mock123_0"},
+                {"correlation_id": "2", "short_url": "http://test/mock123_1"}
+            ]`,
+		},
+		{
+			name:        "Invalid JSON requesttest",
+			requestBody: `[ { invalid json } ]`,
+			wantStatus:  http.StatusBadRequest,
+			wantBody:    `{"error":"Invalid JSON format"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := &MockStorage{data: make(map[string]string)}
+			logger := zap.NewNop()
+
+			defer logger.Sync()
+
+			handler := NewCreateBatchJSON(storage, "http://test", logger.Sugar())
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+
+			handler(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			body, _ := io.ReadAll(res.Body)
+			if tt.wantStatus == http.StatusCreated {
+				assert.JSONEq(t, tt.wantBody, string(body))
+			} else {
+				assert.JSONEq(t, tt.wantBody, string(body))
+			}
+
 		})
 	}
 }

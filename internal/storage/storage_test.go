@@ -173,3 +173,37 @@ func TestPostgresStorage(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestPostgresStorage_SaveInBatch(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_DSN")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_DSN not set, skipping PostgreSQL tests")
+	}
+	s, err := NewDataBaseStorage(dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	ctx := context.Background()
+	_, err = s.db.ExecContext(ctx, "TRUNCATE TABLE short_urls")
+	require.NoError(t, err)
+
+	urls := []string{
+		"http://example.com/batch1",
+		"http://example.com/batch2",
+		"http://example.com/batch1", // Дубликат
+	}
+
+	t.Run("Save batch with duplicates", func(t *testing.T) {
+		keys, err := s.SaveInBatch(ctx, urls)
+		assert.NoError(t, err)
+		assert.Len(t, keys, len(urls))
+		assert.Equal(t, keys[0], keys[2], "Duplicate URLs should return same keys")
+
+		// Проверка что все URL доступны
+		for i, key := range keys {
+			val, err := s.Get(ctx, key)
+			assert.NoError(t, err)
+			assert.Equal(t, urls[i], val)
+		}
+	})
+}

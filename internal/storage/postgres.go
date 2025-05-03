@@ -89,3 +89,48 @@ func (d *DataBaseStorage) Ping(ctx context.Context) error {
 	}
 	return d.db.PingContext(ctx)
 }
+
+func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+
+	// Подготовка транзакции
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Подготовка SQL запроса
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO short_urls (original_url, short_url)
+    VALUES ($1, $2)
+    ON CONFLICT (original_url) DO NOTHING
+    RETURNING short_url`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statement: %v", err)
+	}
+
+	defer stmt.Close()
+
+	// Обработка SQL запроса
+	var keys []string
+
+	for _, u := range urls {
+		var key string
+		err := stmt.QueryRowContext(ctx, u, generateShortCode()).Scan(&key)
+		if err == sql.ErrNoRows {
+			// URL уже существует, получаем его ключ
+			err = tx.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url = $1", u).Scan(&key)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get existing URL: %v", err)
+			}
+		} else if err != nil {
+			return nil, fmt.Errorf("failed to save URL: %v", err)
+		}
+
+		keys = append(keys, key)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+	return keys, nil
+
+}

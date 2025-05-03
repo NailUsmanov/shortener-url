@@ -66,3 +66,16 @@ func generateShortCode() string {
 	}
 	return string(code)
 }
+
+func (s *MemoryStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, len(urls))
+	for i := range keys {
+		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем фейковый ключ
+	}
+
+	return keys, nil
+}

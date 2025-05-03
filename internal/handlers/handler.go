@@ -3,6 +3,7 @@ package handlers
 import (
 	_ "bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -144,5 +145,67 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 			sugar.Error("error encoding response")
 		}
 
+	}
+}
+
+func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		contentType := r.Header.Get("Content-Type")
+		if contentType != "application/json" {
+			http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+			return
+		}
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
+			return
+		}
+
+		var req []models.RequestURLMassiv
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			sugar.Error("cannot decode request JSON body:", err)
+			http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+			return
+		}
+
+		if len(req) == 0 {
+			http.Error(w, "Empty batch request", http.StatusBadRequest)
+			return
+		}
+
+		var urls []string
+		for _, item := range req {
+			if _, err := url.ParseRequestURI(item.OriginalURL); err != nil {
+				http.Error(w, fmt.Sprintf("Invalid URL: %s", item.OriginalURL), http.StatusBadRequest)
+				return
+			}
+			urls = append(urls, item.OriginalURL)
+		}
+		var keys []string
+		for i, _ := range urls {
+			key, err := s.Save(r.Context(), urls[i])
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			keys = append(keys, key)
+		}
+
+		var resp []models.ResponseMassiv
+		for i, key := range keys {
+			resp = append(resp, models.ResponseMassiv{
+				CorrelationID: req[i].CorrelationID,
+				ShortURL:      baseURL + "/" + key,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+
+		enc := json.NewEncoder(w)
+		if err := enc.Encode(resp); err != nil {
+			sugar.Error("error encoding response:", err)
+		}
 	}
 }
