@@ -114,7 +114,7 @@ func (f *FileStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
 	// Проверяем, не отменен ли контекст
 	if err := ctx.Err(); err != nil {
 		return nil, err

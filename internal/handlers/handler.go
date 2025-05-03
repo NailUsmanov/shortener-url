@@ -183,7 +183,7 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 			urls = append(urls, item.OriginalURL)
 		}
 		var keys []string
-		for i, _ := range urls {
+		for i := range urls {
 			key, err := s.Save(r.Context(), urls[i])
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
