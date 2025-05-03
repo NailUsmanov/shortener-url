@@ -151,45 +151,50 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		contentType := r.Header.Get("Content-Type")
-		if contentType != "application/json" {
-			http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
-			return
-		}
-
-		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
+		// Строгая проверка Content-Type
+		if r.Header.Get("Content-Type") != "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Content-Type must be application/json",
+			})
 			return
 		}
 
 		var req []models.RequestURLMassiv
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			sugar.Error("cannot decode request JSON body:", err)
-			http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON format"})
 			return
 		}
 
 		if len(req) == 0 {
-			http.Error(w, "Empty batch request", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Empty batch request"})
 			return
 		}
 
 		var urls []string
 		for _, item := range req {
 			if _, err := url.ParseRequestURI(item.OriginalURL); err != nil {
-				http.Error(w, fmt.Sprintf("Invalid URL: %s", item.OriginalURL), http.StatusBadRequest)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Invalid URL: %s", item.OriginalURL)})
 				return
 			}
 			urls = append(urls, item.OriginalURL)
 		}
-		var keys []string
-		for i := range urls {
-			key, err := s.Save(r.Context(), urls[i])
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			keys = append(keys, key)
+
+		keys, err := s.SaveInBatch(r.Context(), urls)
+		if err != nil {
+			sugar.Error("failed to save batch:", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
 		}
 
 		var resp []models.ResponseMassiv

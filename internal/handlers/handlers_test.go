@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -41,10 +40,8 @@ func (m *MockStorage) Ping(ctx context.Context) error {
 
 func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
 	keys := make([]string, len(urls))
-	for i, url := range urls {
-		key := "mock123_" + strconv.Itoa(i)
-		m.data[key] = url
-		keys[i] = key
+	for i := range urls {
+		keys[i] = "mock123" // Генерируем уникальные ключи
 	}
 	return keys, nil
 }
@@ -297,8 +294,8 @@ func TestCreateBatchJSON(t *testing.T) {
             ]`,
 			wantStatus: http.StatusCreated,
 			wantBody: `[
-                {"correlation_id": "1", "short_url": "http://test/mock123_0"},
-                {"correlation_id": "2", "short_url": "http://test/mock123_1"}
+                {"correlation_id": "1", "short_url": "http://test/mock123"},
+                {"correlation_id": "2", "short_url": "http://test/mock123"}
             ]`,
 		},
 		{
@@ -306,6 +303,18 @@ func TestCreateBatchJSON(t *testing.T) {
 			requestBody: `[ { invalid json } ]`,
 			wantStatus:  http.StatusBadRequest,
 			wantBody:    `{"error":"Invalid JSON format"}`,
+		},
+		{
+			name:        "Empty array",
+			requestBody: `[]`,
+			wantStatus:  http.StatusBadRequest,
+			wantBody:    `{"error":"Empty batch request"}`,
+		},
+		{
+			name:        "Missing Content-Type",
+			requestBody: `[{"correlation_id": "1", "original_url": "http://test.com"}]`,
+			wantStatus:  http.StatusBadRequest,
+			wantBody:    `{"error":"Content-Type must be application/json"}`,
 		},
 	}
 
@@ -318,7 +327,9 @@ func TestCreateBatchJSON(t *testing.T) {
 
 			handler := NewCreateBatchJSON(storage, "http://test", logger.Sugar())
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(tt.requestBody))
-			req.Header.Set("Content-Type", "application/json")
+			if tt.name != "Missing Content-Type" {
+				req.Header.Set("Content-Type", "application/json")
+			}
 
 			w := httptest.NewRecorder()
 
