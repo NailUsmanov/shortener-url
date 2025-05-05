@@ -40,6 +40,24 @@ func TestInMemoryStorage(t *testing.T) {
 			codes[code] = true
 		}
 	})
+
+	t.Run("Get By URL", func(t *testing.T) {
+		url := "http://example.com"
+
+		key, err := s.Save(context.Background(), url)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, key)
+
+		foundKey, err := s.GetByURL(context.Background(), url)
+		assert.NoError(t, err)
+		assert.Equal(t, key, foundKey)
+
+		foundURL, err := s.Get(context.Background(), foundKey)
+		assert.NoError(t, err)
+		assert.Equal(t, url, foundURL)
+
+	})
+
 }
 
 // Для хранения в файле

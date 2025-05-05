@@ -130,5 +130,19 @@ func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string,
 }
 
 func (f *FileStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
-	return "", fmt.Errorf("GetByURL not implemented")
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	f.saveMutex.Lock()
+	defer f.saveMutex.Unlock()
+
+	for short, url := range f.memory.data {
+		if url == originalURL {
+			return short, nil
+		}
+	}
+	return "", nil
 }

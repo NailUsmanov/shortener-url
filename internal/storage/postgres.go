@@ -149,5 +149,15 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]str
 }
 
 func (d *DataBaseStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
-	return "", fmt.Errorf("GetByURL not implemented")
+	var shortURL string
+	err := d.db.QueryRowContext(ctx,
+		"SELECT short_url FROM short_urls WHERE original_url = $1", originalURL).Scan(&shortURL)
+
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get URL: %w", err)
+	}
+	return shortURL, nil
 }
