@@ -95,5 +95,5 @@ func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string) (strin
 			return shortURL, nil
 		}
 	}
-	return "", fmt.Errorf("original URL not found")
+	return "", nil
 }

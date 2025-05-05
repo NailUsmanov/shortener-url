@@ -59,18 +59,16 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 
 		// Проверяем наличие оригинального УРЛ в нашей мапе
 		existsKey, err := s.GetByURL(r.Context(), rawURL)
-		if err == nil {
-			if errors.Is(err, storage.ErrAlreadyHasKey) {
-				sugar.Infof("URL already exists: %s -> %s", rawURL, existsKey)
-				w.Header().Set("Content-Type", "text/plain")
-				w.WriteHeader(http.StatusConflict)
-				w.Write([]byte(baseURL + "/" + existsKey))
-				return
-			}
+		if err == nil && existsKey != "" {
+			sugar.Infof("URL already exists: %s -> %s", rawURL, existsKey)
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(baseURL + "/" + existsKey))
+			return
 		}
 
 		// Обрабатываем другие ошибки (кроме "не найдено")
-		if !errors.Is(err, storage.ErrAlreadyHasKey) {
+		if err != nil {
 			sugar.Errorf("Error checking URL existence: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
