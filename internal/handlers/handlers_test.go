@@ -46,6 +46,10 @@ func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string) ([]string,
 	return keys, nil
 }
 
+func (m *MockStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+	return "", nil
+}
+
 func TestCreateShortURL(t *testing.T) {
 	tests := []struct {
 		name        string

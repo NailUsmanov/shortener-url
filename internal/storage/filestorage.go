@@ -128,3 +128,7 @@ func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string,
 
 	return keys, nil
 }
+
+func (f *FileStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+	return "", fmt.Errorf("GetByURL not implemented")
+}

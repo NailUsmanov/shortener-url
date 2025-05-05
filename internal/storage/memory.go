@@ -79,3 +79,21 @@ func (s *MemoryStorage) SaveInBatch(ctx context.Context, urls []string) ([]strin
 
 	return keys, nil
 }
+
+func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for shortURL, url := range s.data {
+		if url == OriginalURL {
+			return shortURL, nil
+		}
+	}
+	return "", fmt.Errorf("original URL not found")
+}

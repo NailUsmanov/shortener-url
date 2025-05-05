@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 type DataBaseStorage struct {
 	db *sql.DB
 }
+
+var ErrAlreadyHasKey = errors.New("key is exists")
 
 func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	db, err := sql.Open("pgx", dsn)
@@ -33,9 +36,16 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 		short_url TEXT NOT NULL UNIQUE
 	);
 `)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create table: %v", err)
 	}
+
+	_, err = db.ExecContext(ctx, "CREATE INDEX video_id ON videos (video_id)")
+	if err != nil {
+		return nil, err
+	}
+
 	return &DataBaseStorage{db: db}, nil
 }
 
@@ -56,7 +66,8 @@ func (d *DataBaseStorage) Save(ctx context.Context, url string) (string, error) 
 		}
 		return "", fmt.Errorf("failed to check URL existence: %v", err) //  Возвращаю ошибку, если это не ErrNoRows
 	}
-	return key, nil // URL уже существует у нас в баще, возвращаем его short_url
+
+	return key, ErrAlreadyHasKey // URL уже существует у нас в баще, возвращаем его short_url
 }
 
 func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
@@ -110,15 +121,19 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]str
 
 	// Обработка SQL запроса
 	var keys []string
-
+	var conflictErr error
 	for _, u := range urls {
 		var key string
 		err := stmt.QueryRowContext(ctx, u, generateShortCode()).Scan(&key)
 		if err == sql.ErrNoRows {
+
 			// URL уже существует, получаем его ключ
 			err = tx.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url = $1", u).Scan(&key)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get existing URL: %v", err)
+			}
+			if conflictErr == nil {
+				conflictErr = ErrAlreadyHasKey
 			}
 		} else if err != nil {
 			return nil, fmt.Errorf("failed to save URL: %v", err)
@@ -131,4 +146,8 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]str
 	}
 	return keys, nil
 
+}
+
+func (d *DataBaseStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+	return "", fmt.Errorf("GetByURL not implemented")
 }

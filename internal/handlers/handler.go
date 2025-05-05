@@ -3,6 +3,7 @@ package handlers
 import (
 	_ "bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +38,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		defer r.Body.Close()
 
 		// Проверяем чтобы тело было не 0
 		if len(body) == 0 {
@@ -52,6 +54,26 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		_, err = url.ParseRequestURI(rawURL)
 		if err != nil {
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
+			return
+		}
+
+		// Проверяем наличие оригинального УРЛ в нашей мапе
+		existsKey, err := s.GetByURL(r.Context(), rawURL)
+		if err == nil {
+
+		}
+		if errors.Is(err, storage.ErrAlreadyHasKey) {
+			sugar.Infof("URL already exists: %s -> %s", rawURL, existsKey)
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(baseURL + "/" + existsKey))
+			return
+		}
+
+		// Обрабатываем другие ошибки (кроме "не найдено")
+		if !errors.Is(err, storage.ErrAlreadyHasKey) {
+			sugar.Errorf("Error checking URL existence: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
@@ -190,6 +212,22 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 
 		keys, err := s.SaveInBatch(r.Context(), urls)
 		if err != nil {
+			if errors.Is(err, storage.ErrAlreadyHasKey) {
+
+				for _, url := range urls {
+					if key, err := s.GetByURL(r.Context(), url); err == nil {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusConflict)
+						json.NewEncoder(w).Encode(map[string]string{
+							"short_url": baseURL + "/" + key,
+						})
+						return
+					}
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
 			sugar.Error("failed to save batch:", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
