@@ -33,17 +33,13 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	CREATE TABLE IF NOT EXISTS short_urls (
 		id SERIAL PRIMARY KEY,
 		original_url TEXT NOT NULL UNIQUE,
-		short_url TEXT NOT NULL UNIQUE
+		short_url TEXT NOT NULL UNIQUE,
+		CONSTRAINT original_url_unique UNIQUE (original_url)
 	);
 `)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create table: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, "CREATE INDEX short_url_id ON shorts_urls (short_url_id)")
-	if err != nil {
-		return nil, err
 	}
 
 	return &DataBaseStorage{db: db}, nil
