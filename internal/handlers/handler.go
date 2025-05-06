@@ -149,7 +149,19 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		// Сохраняем URL
 		key, err := s.Save(r.Context(), req.URL)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			if errors.Is(err, storage.ErrAlreadyHasKey) {
+				var resp models.Response
+				resp.Result = baseURL + "/" + key
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+
+			sugar.Errorf("Failed to save URL: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
 			return
 		}
 
