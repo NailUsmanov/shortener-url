@@ -51,6 +51,7 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 
 func (d *DataBaseStorage) Save(ctx context.Context, url string) (string, error) {
 	// Проверяем есть ли такая ссылка уже в базе данных и выдаем имеющийся ключ
+
 	row := d.db.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url = $1", url)
 	var key string
 	err := row.Scan(&key)

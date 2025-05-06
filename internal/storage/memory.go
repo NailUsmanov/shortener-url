@@ -28,9 +28,13 @@ func (s *MemoryStorage) Save(ctx context.Context, url string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	for short, original := range s.data {
+		if original == url {
+			return short, ErrAlreadyHasKey // Возвращаем существующий ключ
+		}
+	}
 	key := generateShortCode()
 	s.data[key] = url
-
 	return key, nil
 
 }

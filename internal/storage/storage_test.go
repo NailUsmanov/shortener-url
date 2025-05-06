@@ -42,22 +42,37 @@ func TestInMemoryStorage(t *testing.T) {
 	})
 
 	t.Run("Get By URL", func(t *testing.T) {
+		s := NewMemoryStorage()
 		url := "http://example.com"
 
-		key, err := s.Save(context.Background(), url)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, key)
+		shortURL, err := s.Save(context.Background(), url)
+		require.NoError(t, err)
 
-		foundKey, err := s.GetByURL(context.Background(), url)
-		assert.NoError(t, err)
-		assert.Equal(t, key, foundKey)
+		_, err = s.Save(context.Background(), url)
+		assert.ErrorIs(t, err, ErrAlreadyHasKey)
 
-		foundURL, err := s.Get(context.Background(), foundKey)
+		key, err := s.GetByURL(context.Background(), url)
 		assert.NoError(t, err)
-		assert.Equal(t, url, foundURL)
+		assert.Equal(t, shortURL, key)
 
 	})
 
+	t.Run("Non-existent URL", func(t *testing.T) {
+		s := NewMemoryStorage()
+		url := "http://example.com"
+		key, err := s.GetByURL(context.Background(), url)
+		assert.NoError(t, err)
+		assert.Empty(t, key)
+	})
+
+	t.Run("Cancelled context", func(t *testing.T) {
+		s := NewMemoryStorage()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := s.GetByURL(ctx, "http://example.com")
+		assert.ErrorIs(t, err, context.Canceled)
+	})
 }
 
 // Для хранения в файле

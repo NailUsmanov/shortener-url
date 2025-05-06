@@ -37,6 +37,11 @@ func (f *FileStorage) Save(ctx context.Context, url string) (string, error) {
 		return "", ctx.Err()
 	default:
 	}
+
+	if key, err := f.GetByURL(ctx, url); err == nil && key != "" {
+		return key, ErrAlreadyHasKey
+	}
+
 	key, err := f.memory.Save(ctx, url)
 	if err != nil {
 		return "", err
