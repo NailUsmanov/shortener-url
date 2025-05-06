@@ -41,7 +41,7 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 		return nil, fmt.Errorf("failed to create table: %v", err)
 	}
 
-	_, err = db.ExecContext(ctx, "CREATE INDEX video_id ON videos (video_id)")
+	_, err = db.ExecContext(ctx, "CREATE INDEX short_url_id ON shorts_urls (short_url_id)")
 	if err != nil {
 		return nil, err
 	}
