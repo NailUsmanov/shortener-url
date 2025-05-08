@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -16,18 +17,18 @@ func TestInMemoryStorage(t *testing.T) {
 	s := NewMemoryStorage()
 	t.Run("Save and Get", func(t *testing.T) {
 		url := "http://example.com"
-		key, err := s.Save(url)
+		key, err := s.Save(context.Background(), url)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, key)
 
-		val, err := s.Get(key)
+		val, err := s.Get(context.Background(), key)
 		assert.NoError(t, err)
 		assert.Equal(t, url, val)
 
 	})
 
 	t.Run("Get non-existent", func(t *testing.T) {
-		_, err := s.Get("nonexistent")
+		_, err := s.Get(context.Background(), "nonexistent")
 		assert.Error(t, err)
 	})
 
@@ -38,6 +39,39 @@ func TestInMemoryStorage(t *testing.T) {
 			assert.False(t, codes[code], "Duplicate code generated")
 			codes[code] = true
 		}
+	})
+
+	t.Run("Get By URL", func(t *testing.T) {
+		s := NewMemoryStorage()
+		url := "http://example.com"
+
+		shortURL, err := s.Save(context.Background(), url)
+		require.NoError(t, err)
+
+		_, err = s.Save(context.Background(), url)
+		assert.ErrorIs(t, err, ErrAlreadyHasKey)
+
+		key, err := s.GetByURL(context.Background(), url)
+		assert.NoError(t, err)
+		assert.Equal(t, shortURL, key)
+
+	})
+
+	t.Run("Non-existent URL", func(t *testing.T) {
+		s := NewMemoryStorage()
+		url := "http://example.com"
+		key, err := s.GetByURL(context.Background(), url)
+		assert.NoError(t, err)
+		assert.Empty(t, key)
+	})
+
+	t.Run("Cancelled context", func(t *testing.T) {
+		s := NewMemoryStorage()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := s.GetByURL(ctx, "http://example.com")
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 }
 
@@ -66,11 +100,11 @@ func TestFileStorage(t *testing.T) {
 	t.Run("Initialization and load from file", func(t *testing.T) {
 		s := NewFileStorage(tmpFile.Name())
 
-		val, err := s.Get("test123")
+		val, err := s.Get(context.Background(), "test123")
 		assert.NoError(t, err)
 		assert.Equal(t, "http://test.com", val)
 
-		val, err = s.Get("test456")
+		val, err = s.Get(context.Background(), "test456")
 		assert.NoError(t, err)
 		assert.Equal(t, "http://another.com", val)
 
@@ -81,12 +115,12 @@ func TestFileStorage(t *testing.T) {
 	t.Run("Save New URL", func(t *testing.T) {
 		s := NewFileStorage(tmpFile.Name())
 		url := "http://new-example.com"
-		key, err := s.Save(url)
+		key, err := s.Save(context.Background(), url)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, key)
 
 		//Проверка сохранения в памяти
-		val, err := s.Get(key)
+		val, err := s.Get(context.Background(), key)
 		assert.NoError(t, err)
 		assert.Equal(t, url, val)
 
@@ -117,11 +151,92 @@ func TestFileStorage(t *testing.T) {
 		assert.NotNil(t, s)
 
 		// Проверяем что можем сохранять/получать несмотря на отсутствие файла
-		key, err := s.Save("http://new-url.com")
+		key, err := s.Save(context.Background(), "http://new-url.com")
 		assert.NoError(t, err)
 
-		val, err := s.Get(key)
+		val, err := s.Get(context.Background(), key)
 		assert.NoError(t, err)
 		assert.Equal(t, "http://new-url.com", val)
+	})
+}
+
+func TestPostgresStorage(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_DSN")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_DSN not set, skipping PostgreSQL tests")
+	}
+
+	s, err := NewDataBaseStorage(dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	// Cleanup before tests
+	ctx := context.Background()
+	_, err = s.db.ExecContext(ctx, "DELETE FROM short_urls")
+	require.NoError(t, err)
+
+	t.Run("Save and Get", func(t *testing.T) {
+		url := "http://example.com"
+		key, err := s.Save(ctx, url)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, key)
+
+		val, err := s.Get(ctx, key)
+		assert.NoError(t, err)
+		assert.Equal(t, url, val)
+	})
+
+	t.Run("Save duplicate URL", func(t *testing.T) {
+		url := "http://duplicate.com"
+		key1, err := s.Save(ctx, url)
+		assert.NoError(t, err)
+
+		key2, err := s.Save(ctx, url)
+		assert.NoError(t, err)
+		assert.Equal(t, key1, key2, "Should return same key for same URL")
+	})
+
+	t.Run("Get non-existent", func(t *testing.T) {
+		_, err := s.Get(ctx, "nonexistent")
+		assert.Error(t, err)
+	})
+
+	t.Run("Ping", func(t *testing.T) {
+		err := s.Ping(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestPostgresStorage_SaveInBatch(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_DSN")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_DSN not set, skipping PostgreSQL tests")
+	}
+	s, err := NewDataBaseStorage(dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	ctx := context.Background()
+	_, err = s.db.ExecContext(ctx, "TRUNCATE TABLE short_urls")
+	require.NoError(t, err)
+
+	urls := []string{
+		"http://example.com/batch1",
+		"http://example.com/batch2",
+		"http://example.com/batch1", // Дубликат
+	}
+
+	t.Run("Save batch with duplicates", func(t *testing.T) {
+		keys, err := s.SaveInBatch(ctx, urls)
+		assert.NoError(t, err)
+		assert.Len(t, keys, len(urls))
+		assert.Equal(t, keys[0], keys[2], "Duplicate URLs should return same keys")
+
+		// Проверка что все URL доступны
+		for i, key := range keys {
+			val, err := s.Get(ctx, key)
+			assert.NoError(t, err)
+			assert.Equal(t, urls[i], val)
+		}
 	})
 }

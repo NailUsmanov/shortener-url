@@ -28,15 +28,27 @@ func main() {
 	}
 
 	var store storage.Storage
+
 	if cfg.SaveInFile != "" {
 		store = storage.NewFileStorage(cfg.SaveInFile)
 		sugar.Info("Using file storage")
+	} else if cfg.DataBase != "" {
+		store, err = storage.NewDataBaseStorage(cfg.DataBase)
+		if err != nil {
+			log.Fatalf("Failed to load DataBase: %v", err)
+		}
+
 	} else {
 		store = storage.NewMemoryStorage()
 		sugar.Info("Using in-memory storage")
 	}
 
 	application := app.NewApp(store, cfg.BaseURL, sugar)
+
+	// Закрываем соединение только для БД
+	if dbStore, ok := store.(*storage.DataBaseStorage); ok {
+		defer dbStore.Close()
+	}
 
 	if err := application.Run(cfg.RunAddr); err != nil {
 		sugar.Fatalln(err)

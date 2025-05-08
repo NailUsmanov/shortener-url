@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -20,17 +21,33 @@ type MockStorage struct {
 	data map[string]string
 }
 
-func (m *MockStorage) Save(url string) (string, error) {
+func (m *MockStorage) Save(ctx context.Context, url string) (string, error) {
 	key := "mock123"
 	m.data[key] = url
 	return key, nil
 }
 
-func (m *MockStorage) Get(key string) (string, error) {
+func (m *MockStorage) Get(ctx context.Context, key string) (string, error) {
 	if url, exists := m.data[key]; exists {
 		return url, nil
 	}
 	return "", errors.New("URL not found")
+}
+
+func (m *MockStorage) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+	keys := make([]string, len(urls))
+	for i := range urls {
+		keys[i] = "mock123" // Генерируем уникальные ключи
+	}
+	return keys, nil
+}
+
+func (m *MockStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+	return "", nil
 }
 
 func TestCreateShortURL(t *testing.T) {
@@ -262,6 +279,78 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 			defer res.Body.Close()
 
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
+		})
+	}
+}
+
+func TestCreateBatchJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestBody string
+		wantStatus  int
+		wantBody    string
+	}{
+		{
+			name: "Valid test",
+			requestBody: `[
+                {"correlation_id": "1", "original_url": "http://test1.com"},
+                {"correlation_id": "2", "original_url": "http://test2.com"}
+            ]`,
+			wantStatus: http.StatusCreated,
+			wantBody: `[
+                {"correlation_id": "1", "short_url": "http://test/mock123"},
+                {"correlation_id": "2", "short_url": "http://test/mock123"}
+            ]`,
+		},
+		{
+			name:        "Invalid JSON requesttest",
+			requestBody: `[ { invalid json } ]`,
+			wantStatus:  http.StatusBadRequest,
+			wantBody:    `{"error":"Invalid JSON format"}`,
+		},
+		{
+			name:        "Empty array",
+			requestBody: `[]`,
+			wantStatus:  http.StatusBadRequest,
+			wantBody:    `{"error":"Empty batch request"}`,
+		},
+		{
+			name:        "Missing Content-Type",
+			requestBody: `[{"correlation_id": "1", "original_url": "http://test.com"}]`,
+			wantStatus:  http.StatusBadRequest,
+			wantBody:    `{"error":"Content-Type must be application/json"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := &MockStorage{data: make(map[string]string)}
+			logger := zap.NewNop()
+
+			defer logger.Sync()
+
+			handler := NewCreateBatchJSON(storage, "http://test", logger.Sugar())
+			req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(tt.requestBody))
+			if tt.name != "Missing Content-Type" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+
+			w := httptest.NewRecorder()
+
+			handler(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+
+			body, _ := io.ReadAll(res.Body)
+			if tt.wantStatus == http.StatusCreated {
+				assert.JSONEq(t, tt.wantBody, string(body))
+			} else {
+				assert.JSONEq(t, tt.wantBody, string(body))
+			}
+
 		})
 	}
 }

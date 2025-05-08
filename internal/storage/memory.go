@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -17,18 +18,34 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
-func (s *MemoryStorage) Save(url string) (string, error) {
+func (s *MemoryStorage) Save(ctx context.Context, url string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	for short, original := range s.data {
+		if original == url {
+			return short, ErrAlreadyHasKey // Возвращаем существующий ключ
+		}
+	}
 	key := generateShortCode()
 	s.data[key] = url
-
 	return key, nil
 
 }
 
-func (s *MemoryStorage) Get(key string) (string, error) {
+func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -40,6 +57,10 @@ func (s *MemoryStorage) Get(key string) (string, error) {
 	return url, nil
 }
 
+func (s *MemoryStorage) Ping(ctx context.Context) error {
+	return ctx.Err()
+}
+
 func generateShortCode() string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, 8)
@@ -48,4 +69,35 @@ func generateShortCode() string {
 		code[i] = chars[rand.Intn(len(chars))]
 	}
 	return string(code)
+}
+
+func (s *MemoryStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, len(urls))
+	for i := range keys {
+		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем фейковый ключ
+	}
+
+	return keys, nil
+}
+
+func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for shortURL, url := range s.data {
+		if url == OriginalURL {
+			return shortURL, nil
+		}
+	}
+	return "", nil
 }

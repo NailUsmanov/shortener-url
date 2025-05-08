@@ -12,12 +12,15 @@ type Config struct {
 	RunAddr    string `env:"SERVER_ADDRESS" envDefault:":8080"`
 	BaseURL    string `env:"BASE_URL"`
 	SaveInFile string `env:"FILE_STORAGE_PATH"`
+	DataBase   string `env:"DATABASE_DSN"`
 }
 
 var (
-	flagRunAddr    = flag.String("a", "", "address and port to run server")
-	flagBaseURL    = flag.String("b", "", "base URL for short links")
-	flagSaveInFile = flag.String("f", "", "if want to save short URL in file")
+	flagRunAddr      = flag.String("a", "", "address and port to run server")
+	flagBaseURL      = flag.String("b", "", "base URL for short links")
+	flagSaveInFile   = flag.String("f", "", "if want to save short URL in file")
+	flagDataBase     = flag.String("d", "", "if want to save short URL in DataBase")
+	flagDataBaseLong = flag.String("database-dsn", "", "DSN to connect to the database")
 )
 
 func NewConfig() (*Config, error) {
@@ -38,6 +41,12 @@ func NewConfig() (*Config, error) {
 	}
 	if *flagSaveInFile != "" {
 		cfg.SaveInFile = *flagSaveInFile
+	}
+
+	if *flagDataBaseLong != "" {
+		cfg.DataBase = *flagDataBaseLong
+	} else if *flagDataBase != "" {
+		cfg.DataBase = *flagDataBase
 	}
 
 	// Устанавливаем значение по умолчанию

@@ -3,6 +3,8 @@ package handlers
 import (
 	_ "bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -36,6 +38,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		defer r.Body.Close()
 
 		// Проверяем чтобы тело было не 0
 		if len(body) == 0 {
@@ -54,8 +57,25 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			return
 		}
 
+		// Проверяем наличие оригинального УРЛ в нашей мапе
+		existsKey, err := s.GetByURL(r.Context(), rawURL)
+		if err == nil && existsKey != "" {
+			sugar.Infof("URL already exists: %s -> %s", rawURL, existsKey)
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(baseURL + "/" + existsKey))
+			return
+		}
+
+		// Обрабатываем другие ошибки (кроме "не найдено")
+		if err != nil {
+			sugar.Errorf("Error checking URL existence: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		// Сохраняем URL
-		key, err := s.Save(rawURL)
+		key, err := s.Save(r.Context(), rawURL)
 		if err != nil {
 			sugar.Errorf("Failed to save URL: %v", err)
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
@@ -76,7 +96,7 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 		// 1. Получаем ID из URL
 		key := chi.URLParam(r, "id")
 		// 2. Ищем оригинальный URL
-		url, err := s.Get(key)
+		url, err := s.Get(r.Context(), key)
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -84,6 +104,17 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 		// 3. Делаем редирект
 		w.Header().Set("Location", url)
 		w.WriteHeader(http.StatusTemporaryRedirect)
+	}
+}
+
+func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := s.Ping(r.Context()); err != nil {
+			sugar.Errorf("Failed to open DataBase: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -116,9 +147,21 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		}
 
 		// Сохраняем URL
-		key, err := s.Save(req.URL)
+		key, err := s.Save(r.Context(), req.URL)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			if errors.Is(err, storage.ErrAlreadyHasKey) {
+				var resp models.Response
+				resp.Result = baseURL + "/" + key
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+
+			sugar.Errorf("Failed to save URL: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
 			return
 		}
 
@@ -133,5 +176,88 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 			sugar.Error("error encoding response")
 		}
 
+	}
+}
+
+func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Строгая проверка Content-Type
+		if r.Header.Get("Content-Type") != "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Content-Type must be application/json",
+			})
+			return
+		}
+
+		var req []models.RequestURLMassiv
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			sugar.Error("cannot decode request JSON body:", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON format"})
+			return
+		}
+
+		if len(req) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Empty batch request"})
+			return
+		}
+
+		var urls []string
+		for _, item := range req {
+			if _, err := url.ParseRequestURI(item.OriginalURL); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Invalid URL: %s", item.OriginalURL)})
+				return
+			}
+			urls = append(urls, item.OriginalURL)
+		}
+
+		keys, err := s.SaveInBatch(r.Context(), urls)
+		if err != nil {
+			if errors.Is(err, storage.ErrAlreadyHasKey) {
+
+				for _, url := range urls {
+					if key, err := s.GetByURL(r.Context(), url); err == nil {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusConflict)
+						json.NewEncoder(w).Encode(map[string]string{
+							"short_url": baseURL + "/" + key,
+						})
+						return
+					}
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			sugar.Error("failed to save batch:", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		var resp []models.ResponseMassiv
+		for i, key := range keys {
+			resp = append(resp, models.ResponseMassiv{
+				CorrelationID: req[i].CorrelationID,
+				ShortURL:      baseURL + "/" + key,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+
+		enc := json.NewEncoder(w)
+		if err := enc.Encode(resp); err != nil {
+			sugar.Error("error encoding response:", err)
+		}
 	}
 }

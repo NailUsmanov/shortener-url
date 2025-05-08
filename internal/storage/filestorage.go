@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -30,8 +31,18 @@ type ShortURLJSON struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func (f *FileStorage) Save(url string) (string, error) {
-	key, err := f.memory.Save(url)
+func (f *FileStorage) Save(ctx context.Context, url string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	if key, err := f.GetByURL(ctx, url); err == nil && key != "" {
+		return key, ErrAlreadyHasKey
+	}
+
+	key, err := f.memory.Save(ctx, url)
 	if err != nil {
 		return "", err
 	}
@@ -43,8 +54,13 @@ func (f *FileStorage) Save(url string) (string, error) {
 	return key, nil
 }
 
-func (f *FileStorage) Get(key string) (string, error) {
-	return f.memory.Get(key)
+func (f *FileStorage) Get(ctx context.Context, key string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+	return f.memory.Get(ctx, key)
 }
 
 // Доп метод для сохранения в файл
@@ -92,4 +108,46 @@ func (f *FileStorage) loadFromFile() {
 			f.lastUUID = record.UUID
 		}
 	}
+}
+
+func (f *FileStorage) Ping(ctx context.Context) error {
+	// Проверяем отмену контекста
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+	// Проверяем, не отменен ли контекст
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Заглушка: просто возвращаем фейковые ключи
+	keys := make([]string, len(urls))
+	for i := range keys {
+		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем фейковый ключ
+	}
+
+	return keys, nil
+}
+
+func (f *FileStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	default:
+	}
+
+	f.saveMutex.Lock()
+	defer f.saveMutex.Unlock()
+
+	for short, url := range f.memory.data {
+		if url == originalURL {
+			return short, nil
+		}
+	}
+	return "", nil
 }
