@@ -47,6 +47,9 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://migrations",
 		"postgres", driver)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialise migrate driver: %w", err)
+	}
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return nil, fmt.Errorf("failed to apply migrations: %w", err)
