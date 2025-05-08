@@ -14,6 +14,13 @@ type DataBaseStorage struct {
 	db *sql.DB
 }
 
+var SelectShortURL string = "SELECT short_url FROM short_urls WHERE original_url = $1"
+var InsertOriginalAndShortURL string = "INSERT INTO short_urls (original_url, short_url) VALUES ($1, $2)"
+var PrepareSQL string = `INSERT INTO short_urls (original_url, short_url)
+    VALUES ($1, $2)
+    ON CONFLICT (original_url) DO NOTHING
+    RETURNING short_url`
+var SelectOriginalURL string = `SELECT original_url FROM short_urls WHERE short_url = $1`
 var ErrAlreadyHasKey = errors.New("key is exists")
 
 func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
@@ -48,14 +55,14 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 func (d *DataBaseStorage) Save(ctx context.Context, url string) (string, error) {
 	// Проверяем есть ли такая ссылка уже в базе данных и выдаем имеющийся ключ
 
-	row := d.db.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url = $1", url)
+	row := d.db.QueryRowContext(ctx, SelectShortURL, url)
 	var key string
 	err := row.Scan(&key)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Генерация нового ключа
 			key = generateShortCode()
-			_, err = d.db.ExecContext(ctx, `INSERT INTO short_urls (original_url, short_url) VALUES ($1, $2)`, url, key)
+			_, err = d.db.ExecContext(ctx, InsertOriginalAndShortURL, url, key)
 			if err != nil {
 				return "", fmt.Errorf("failed to save URL: %v", err)
 			}
@@ -69,7 +76,7 @@ func (d *DataBaseStorage) Save(ctx context.Context, url string) (string, error) 
 
 func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
 
-	row := d.db.QueryRowContext(ctx, `SELECT original_url FROM short_urls WHERE short_url = $1`, key)
+	row := d.db.QueryRowContext(ctx, SelectOriginalURL, key)
 
 	var originalURL string
 	err := row.Scan(&originalURL)
@@ -106,10 +113,7 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]str
 	defer tx.Rollback()
 
 	// Подготовка SQL запроса
-	stmt, err := tx.PrepareContext(ctx, `INSERT INTO short_urls (original_url, short_url)
-    VALUES ($1, $2)
-    ON CONFLICT (original_url) DO NOTHING
-    RETURNING short_url`)
+	stmt, err := tx.PrepareContext(ctx, PrepareSQL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %v", err)
 	}
@@ -125,7 +129,7 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]str
 		if err == sql.ErrNoRows {
 
 			// URL уже существует, получаем его ключ
-			err = tx.QueryRowContext(ctx, "SELECT short_url FROM short_urls WHERE original_url = $1", u).Scan(&key)
+			err = tx.QueryRowContext(ctx, SelectShortURL, u).Scan(&key)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get existing URL: %v", err)
 			}
@@ -148,7 +152,7 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string) ([]str
 func (d *DataBaseStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
 	var shortURL string
 	err := d.db.QueryRowContext(ctx,
-		"SELECT short_url FROM short_urls WHERE original_url = $1", originalURL).Scan(&shortURL)
+		SelectShortURL, originalURL).Scan(&shortURL)
 
 	if err == sql.ErrNoRows {
 		return "", nil
