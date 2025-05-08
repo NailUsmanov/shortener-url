@@ -2,10 +2,22 @@ package storage
 
 import "context"
 
-type Storage interface {
-	SaveInBatch(ctx context.Context, urls []string) ([]string, error)
+type BasicStorage interface {
 	Save(ctx context.Context, url string) (string, error)
 	Get(ctx context.Context, key string) (string, error)
 	Ping(ctx context.Context) error
+}
+
+type BatchStorage interface {
+	SaveInBatch(ctx context.Context, urls []string) ([]string, error)
+}
+
+type URLFinder interface {
 	GetByURL(ctx context.Context, url string) (string, error)
+}
+
+type Storage interface {
+	BasicStorage
+	BatchStorage
+	URLFinder
 }

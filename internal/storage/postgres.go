@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -35,18 +37,19 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 		return nil, fmt.Errorf("failed to ping PostgreSQL: %v", err)
 	}
 
-	// Создаем таблицу, если ее нет
-	_, err = db.ExecContext(ctx, `
-	CREATE TABLE IF NOT EXISTS short_urls (
-		id SERIAL PRIMARY KEY,
-		original_url TEXT NOT NULL UNIQUE,
-		short_url TEXT NOT NULL UNIQUE,
-		CONSTRAINT original_url_unique UNIQUE (original_url)
-	);
-`)
-
+	// Настройка миграций
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create table: %v", err)
+		return nil, fmt.Errorf("failed to create migrate driver: %w", err)
+	}
+
+	// Инициализация мигратора
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return nil, fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
 	return &DataBaseStorage{db: db}, nil
