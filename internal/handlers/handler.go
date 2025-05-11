@@ -124,18 +124,10 @@ func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFun
 func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// Проверяем метод
-		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
-			return
-		}
-
 		if r.Header.Get("Content-Type") != "application/json" {
 			http.Error(w, "Invalid content type", http.StatusBadRequest)
 			return
 		}
-		// Получаем UserID из контекста
-		userID, _ := r.Context().Value(middleware.UserIDKey).(string)
 
 		var req models.RequestURL
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -157,6 +149,8 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		}
 
 		// Сохраняем URL
+		// Получаем UserID из контекста
+		userID, _ := r.Context().Value(middleware.UserIDKey).(string)
 		key, err := s.Save(r.Context(), req.URL, userID)
 		if err != nil {
 			if errors.Is(err, storage.ErrAlreadyHasKey) {
@@ -191,13 +185,10 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 
 func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		sugar.Infof("CreateBatchJSON started, headers: %v", r.Header)
 		// Получаем UserID из контекста
-
-		userID, ok := r.Context().Value(middleware.UserIDKey).(string)
-		if !ok || userID == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+		userID, _ := r.Context().Value(middleware.UserIDKey).(string)
+		sugar.Infof("UserID from context: %s", userID)
 
 		// Строгая проверка Content-Type
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -280,15 +271,15 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 }
 
 // GET /api/user/urls
-func GetUserURLS(s storage.Storage, baseURl string, sugar *zap.SugaredLogger) http.HandlerFunc {
+func GetUserURLS(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ID, ok := r.Context().Value(middleware.UserIDKey).(string)
-		if !ok || ID == "" {
-			w.WriteHeader(http.StatusUnauthorized)
+		userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+		if !ok || userID == "" {
+			w.WriteHeader(http.StatusUnauthorized) // 401 для неавторизованных
 			return
 		}
 
-		urls, err := s.GetUserURLS(r.Context(), ID)
+		urls, err := s.GetUserURLS(r.Context(), userID)
 		if err != nil {
 			sugar.Errorf("GetUserURLS error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -302,7 +293,7 @@ func GetUserURLS(s storage.Storage, baseURl string, sugar *zap.SugaredLogger) ht
 		var resp []models.UserURLs
 		for short, original := range urls {
 			resp = append(resp, models.UserURLs{
-				ShortURL:    baseURl + "/" + short,
+				ShortURL:    baseURL + "/" + short,
 				OriginalURL: original,
 			})
 		}

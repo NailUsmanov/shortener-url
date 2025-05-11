@@ -93,7 +93,7 @@ func (f *FileStorage) loadFromFile() {
 		if os.IsNotExist(err) {
 			return
 		}
-		fmt.Printf("Error opening file: %v\n", err)
+		fmt.Printf("error opening file: %v\n", err)
 		return
 	}
 	defer file.Close()
@@ -103,7 +103,7 @@ func (f *FileStorage) loadFromFile() {
 		line := scanner.Bytes()
 		var record ShortURLJSON
 		if err := json.Unmarshal(line, &record); err != nil {
-			fmt.Printf("Error parsing JSON: %v\n", err)
+			fmt.Printf("error parsing JSON: %v\n", err)
 			continue
 		}
 		f.memory.data[record.ShortURL] = URLData{
@@ -153,12 +153,12 @@ func (f *FileStorage) GetByURL(ctx context.Context, originalURL string, userID s
 	for short, url := range f.memory.data {
 		if url.OriginalURL == originalURL {
 			if url.UserID != userID {
-				return "", errors.New("User isnt find")
+				return "", errors.New("user isnt find")
 			}
 			return short, nil
 		}
 	}
-	return "", errors.New("URL isn't find")
+	return "", errors.New("url isn't find")
 }
 
 func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {

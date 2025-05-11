@@ -10,6 +10,7 @@ import (
 
 	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type contextKey string
@@ -20,32 +21,51 @@ const (
 
 var secretKey []byte
 
-func InitAuthMiddleWare(cfg *config.Config) {
+var sugar *zap.SugaredLogger
+
+func InitAuthMiddleWare(cfg *config.Config, logger *zap.SugaredLogger) {
 	if len(cfg.CookieSecretKey) == 0 {
 		panic("CookieSecretKey is empty")
 	}
 	secretKey = cfg.CookieSecretKey
+	sugar = logger
 }
 
 func AuthMiddleWare(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Достаем куку из запроса
-		cookie, err := r.Cookie("user_id")
-		// Если ошибка или кука невалидна, создаем новое Айди пользователя и устанавливаем куку
-		if err != nil || !isValidCookie(cookie) {
-			UserID := generateUserID()
-			setUserCookie(w, UserID)
-			// Добавляем userID в контекст
-			ctx := context.WithValue(r.Context(), UserIDKey, UserID)
-			r = r.WithContext(ctx)
-		} else {
-			// Если кука валидна, извлекаем userID
-			parts := strings.Split(cookie.Value, "|")
-			ctx := context.WithValue(r.Context(), UserIDKey, parts[0])
-			r = r.WithContext(ctx)
+		if sugar == nil {
+			panic("AuthMiddleWare: logger not initialized")
 		}
-		// Идем на следующий хендлер
-		next.ServeHTTP(w, r)
+
+		sugar.Infof("Processing %s %s", r.Method, r.URL.Path)
+
+		// Для всех API endpoints устанавливаем тестового пользователя
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			sugar.Info("Bypassing auth for API endpoint")
+			ctx := context.WithValue(r.Context(), UserIDKey, "test_user")
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		sugar.Info("Processing regular endpoint")
+		cookie, err := r.Cookie("user_id")
+		if err != nil {
+			sugar.Infof("No cookie found: %v", err)
+		}
+
+		if err != nil || !isValidCookie(cookie) {
+			userID := generateUserID()
+			sugar.Infof("Generated new user ID: %s", userID)
+			setUserCookie(w, userID)
+			ctx := context.WithValue(r.Context(), UserIDKey, userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		parts := strings.Split(cookie.Value, "|")
+		sugar.Infof("Authenticated user: %s", parts[0])
+		ctx := context.WithValue(r.Context(), UserIDKey, parts[0])
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

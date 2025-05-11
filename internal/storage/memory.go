@@ -60,7 +60,7 @@ func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
 
 	url, exists := s.data[key]
 	if !exists {
-		return "", fmt.Errorf("URL not found")
+		return "", fmt.Errorf("url not found")
 	}
 
 	return url.OriginalURL, nil
@@ -111,7 +111,7 @@ func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string, userID
 	for shortURL, url := range s.data {
 		if url.OriginalURL == OriginalURL {
 			if url.UserID != userID {
-				return "", errors.New("User not found")
+				return "", errors.New("user not found")
 			}
 			return shortURL, nil
 		}

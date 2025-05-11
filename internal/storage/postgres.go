@@ -182,6 +182,9 @@ func (d *DataBaseStorage) GetUserURLS(ctx context.Context, userID string) (map[s
 	if err != nil {
 		return nil, fmt.Errorf("db query: %v", err)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
+	}
 	defer rows.Close()
 
 	result := make(map[string]string)

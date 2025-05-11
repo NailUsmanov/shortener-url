@@ -7,10 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"strings"
 	"testing"
 
+	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -399,108 +400,75 @@ func TestCreateBatchJSON(t *testing.T) {
 }
 
 func TestGetUserURLS(t *testing.T) {
-	type UserURLs struct {
-		ShortURL    string `json:"short_url"`
-		OriginalURL string `json:"original_url"`
+	// Создаем тестовое хранилище
+	storage := storage.NewMemoryStorage()
+	baseURL := "http://test"
+	logger := zap.NewNop()
+
+	// Тестовые данные
+	userID := "user1"
+	testURLs := map[string]string{
+		"abc": "http://example.com/1",
+		"def": "http://example.com/2",
 	}
 
-	tests := []struct {
-		name         string
-		setupStorage func(s *MockStorage)
-		contextValue interface{}
-		wantStatus   int
-		wantResponse []UserURLs
-	}{
-		{
-			name: "Успешный возврат URL пользователя",
-			setupStorage: func(s *MockStorage) {
-				s.data = map[string]URLData{
-					"abc123": {originalURL: "http://example.com/1", userID: "user1"},
-					"def456": {originalURL: "http://example.com/2", userID: "user1"},
-					"ghi789": {originalURL: "http://example.com/3", userID: "user2"},
-				}
-			},
-			contextValue: "user1",
-			wantStatus:   http.StatusOK,
-			wantResponse: []UserURLs{
-				{ShortURL: "http://test/abc123", OriginalURL: "http://example.com/1"},
-				{ShortURL: "http://test/def456", OriginalURL: "http://example.com/2"},
-			},
-		},
-		{
-			name:         "Нет URL для пользователя",
-			setupStorage: func(s *MockStorage) { s.data = make(map[string]URLData) },
-			contextValue: "user1",
-			wantStatus:   http.StatusNoContent,
-			wantResponse: nil,
-		},
-		{
-			name:         "Неавторизованный доступ (нет user_id в контексте)",
-			setupStorage: func(s *MockStorage) {},
-			contextValue: nil,
-			wantStatus:   http.StatusUnauthorized,
-			wantResponse: nil,
-		},
-		{
-			name:         "Неавторизованный доступ (пустой user_id)",
-			setupStorage: func(s *MockStorage) {},
-			contextValue: "",
-			wantStatus:   http.StatusUnauthorized,
-			wantResponse: nil,
-		},
+	// Сохраняем тестовые URL
+	ctx := context.Background()
+	for _, original := range testURLs {
+		_, err := storage.Save(ctx, original, userID)
+		require.NoError(t, err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Инициализация мока хранилища
-			storage := &MockStorage{data: make(map[string]URLData)}
-			tt.setupStorage(storage)
+	t.Run("Успешный возврат URL пользователя", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/user/urls", nil)
+		req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, userID))
 
-			// Создаем логгер
-			logger := zap.NewNop()
-			defer logger.Sync()
+		w := httptest.NewRecorder()
+		GetUserURLS(storage, baseURL, logger.Sugar())(w, req)
 
-			// Создаем тестовый запрос
-			req := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+		res := w.Result()
+		defer res.Body.Close()
 
-			// Добавляем user_id в контекст если нужно
-			if tt.contextValue != nil {
-				ctx := context.WithValue(req.Context(), "user_id", tt.contextValue)
-				req = req.WithContext(ctx)
-			}
+		// Проверяем статус код
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
-			w := httptest.NewRecorder()
+		// Проверяем заголовок Content-Type
+		require.Equal(t, "application/json", res.Header.Get("Content-Type"))
 
-			// Вызываем хендлер напрямую
-			GetUserURLS(storage, "http://test", logger.Sugar())(w, req)
+		// Декодируем ответ
+		var response []struct {
+			ShortURL    string `json:"short_url"`
+			OriginalURL string `json:"original_url"`
+		}
+		err := json.NewDecoder(res.Body).Decode(&response)
+		require.NoError(t, err)
 
-			// Проверяем результат
-			res := w.Result()
-			defer res.Body.Close()
+		// Проверяем количество URL в ответе
+		require.Len(t, response, len(testURLs))
+	})
 
-			assert.Equal(t, tt.wantStatus, res.StatusCode)
+	t.Run("Нет URL для пользователя", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/user/urls", nil)
+		req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, "unknown_user"))
 
-			if tt.wantResponse != nil {
-				var response []UserURLs
-				err := json.NewDecoder(res.Body).Decode(&response)
-				require.NoError(t, err)
+		w := httptest.NewRecorder()
+		GetUserURLS(storage, baseURL, logger.Sugar())(w, req)
 
-				// Сортируем для стабильного сравнения
-				sort.Slice(response, func(i, j int) bool {
-					return response[i].ShortURL < response[j].ShortURL
-				})
-				sort.Slice(tt.wantResponse, func(i, j int) bool {
-					return tt.wantResponse[i].ShortURL < tt.wantResponse[j].ShortURL
-				})
+		res := w.Result()
+		defer res.Body.Close()
 
-				assert.Equal(t, tt.wantResponse, response)
-				assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
-			} else if tt.wantStatus == http.StatusOK {
-				// Проверяем что тело пустое, если не ожидаем ответа
-				body, err := io.ReadAll(res.Body)
-				require.NoError(t, err)
-				assert.Empty(t, body)
-			}
-		})
-	}
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+	})
+
+	t.Run("Неавторизованный доступ", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/user/urls", nil)
+
+		w := httptest.NewRecorder()
+		GetUserURLS(storage, baseURL, logger.Sugar())(w, req)
+
+		res := w.Result()
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
 }

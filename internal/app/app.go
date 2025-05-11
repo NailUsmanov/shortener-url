@@ -6,6 +6,7 @@ import (
 	"github.com/NailUsmanov/practicum-shortener-url/internal/handlers"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
+	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"github.com/go-chi/chi"
 	"go.uber.org/zap"
 )
@@ -19,36 +20,32 @@ type App struct {
 
 func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 	r := chi.NewRouter()
-
+	middleware.InitAuthMiddleWare(&config.Config{
+		CookieSecretKey: []byte("test-secret-key")}, sugar)
 	app := &App{
 		router:  r, //разыменовываем указатель
 		storage: s,
 		baseURL: baseURL,
 		sugar:   sugar,
 	}
-
+	sugar.Info("App initialized")
 	app.setupRoutes()
 	return app
 }
 
 func (a *App) setupRoutes() {
 	// MiddleWare
-	a.router.Use(middleware.GzipMiddleware)
 	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
+	a.router.Use(middleware.AuthMiddleWare)
+	a.router.Use(middleware.GzipMiddleware)
 
-	a.router.Group(func(r chi.Router) {
-		r.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))
-		r.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
-		r.Get("/ping", handlers.NewPingHandler(a.storage, a.sugar))
-	})
+	a.router.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))
+	a.router.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
+	a.router.Get("/ping", handlers.NewPingHandler(a.storage, a.sugar))
 
-	a.router.Group(func(r chi.Router) {
-		r.Use(middleware.AuthMiddleWare)
-		r.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
-		r.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
-		r.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
-
-	})
+	a.router.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
+	a.router.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
+	a.router.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
 }
 
 func (a *App) Run(addr string) error {
