@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestAppRoutes(t *testing.T) {
 		// Шаг 1: Создаем короткую ссылку
 		reqBody := strings.NewReader("https://example.com")
 		req := newTestRequest(t, "POST", "/", reqBody)
-		ctx := context.WithValue(req.Context(), "user_id", "test_user")
+		ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
 		req = req.WithContext(ctx)
 
 		rec := httptest.NewRecorder()

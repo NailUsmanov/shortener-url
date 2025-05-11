@@ -252,7 +252,7 @@ func TestCreateShortURLJSON(t *testing.T) {
 
 			req.Header.Set("Content-Type", "application/json")
 
-			ctx := context.WithValue(req.Context(), "user_id", "test_user")
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
 			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
@@ -308,7 +308,7 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 
 			// Добавляем user_id в контекст
-			ctx := context.WithValue(req.Context(), "user_id", "test_user")
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
 			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
@@ -376,7 +376,7 @@ func TestCreateBatchJSON(t *testing.T) {
 			}
 
 			// Добавляем user_id в контекст
-			ctx := context.WithValue(req.Context(), "user_id", "test_user")
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
 			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
