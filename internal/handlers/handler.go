@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/models"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/go-chi/chi"
@@ -57,7 +58,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			return
 		}
 		// Получаем userID из контекста
-		userID, _ := r.Context().Value("user_id").(string)
+		userID, _ := r.Context().Value(middleware.UserIDKey).(string)
 
 		// Проверяем наличие оригинального УРЛ в нашей мапе
 		existsKey, err := s.GetByURL(r.Context(), rawURL, userID)
@@ -123,18 +124,18 @@ func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFun
 func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		// Получаем UserID из контекста
-		userID, ok := r.Context().Value("user_id").(string)
-		if !ok || userID == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
 		// Проверяем метод
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
 			return
 		}
+
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, "Invalid content type", http.StatusBadRequest)
+			return
+		}
+		// Получаем UserID из контекста
+		userID, _ := r.Context().Value(middleware.UserIDKey).(string)
 
 		var req models.RequestURL
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -192,7 +193,7 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Получаем UserID из контекста
 
-		userID, ok := r.Context().Value("user_id").(string)
+		userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 		if !ok || userID == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -281,7 +282,7 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 // GET /api/user/urls
 func GetUserURLS(s storage.Storage, baseURl string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ID, ok := r.Context().Value("user_id").(string)
+		ID, ok := r.Context().Value(middleware.UserIDKey).(string)
 		if !ok || ID == "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			return

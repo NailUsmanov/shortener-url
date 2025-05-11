@@ -12,6 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type contextKey string
+
+const (
+	UserIDKey contextKey = "user_id"
+)
+
 var secretKey []byte
 
 func InitAuthMiddleWare(cfg *config.Config) {
@@ -30,12 +36,12 @@ func AuthMiddleWare(next http.Handler) http.Handler {
 			UserID := generateUserID()
 			setUserCookie(w, UserID)
 			// Добавляем userID в контекст
-			ctx := context.WithValue(r.Context(), "user_ID", UserID)
+			ctx := context.WithValue(r.Context(), UserIDKey, UserID)
 			r = r.WithContext(ctx)
 		} else {
 			// Если кука валидна, извлекаем userID
 			parts := strings.Split(cookie.Value, "|")
-			ctx := context.WithValue(r.Context(), "user_ID", parts[0])
+			ctx := context.WithValue(r.Context(), UserIDKey, parts[0])
 			r = r.WithContext(ctx)
 		}
 		// Идем на следующий хендлер
