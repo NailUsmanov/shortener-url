@@ -98,10 +98,18 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 1. Получаем ID из URL
 		key := chi.URLParam(r, "id")
+		if key == "" {
+			http.Error(w, "Empty URL ID", http.StatusBadRequest)
+			return
+		}
 		// 2. Ищем оригинальный URL
 		url, err := s.Get(r.Context(), key)
 		if err != nil {
 			http.NotFound(w, r)
+			return
+		}
+		if url == "" {
+			http.Error(w, "URL not found", http.StatusNotFound)
 			return
 		}
 		// 3. Делаем редирект

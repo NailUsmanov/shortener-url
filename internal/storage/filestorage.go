@@ -80,12 +80,18 @@ func (f *FileStorage) saveToFile(key, url string, userID string) error {
 	f.lastUUID++
 
 	record := ShortURLJSON{
-		UUID:        f.lastUUID,
+		UUID:        f.lastUUID + 1,
 		ShortURL:    key,
 		OriginalURL: url,
 		UserID:      userID,
 	}
-	return json.NewEncoder(file).Encode(record)
+	encoder := json.NewEncoder(file)
+	if err := encoder.Encode(record); err != nil {
+		return fmt.Errorf("failed to encode JSON: %v", err)
+	}
+
+	f.lastUUID++ // Увеличиваем после успешной записи
+	return nil
 }
 
 // Доп. метод для того, чтобы вытащить последнюю запись из файла и найти последний UUID
