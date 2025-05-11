@@ -43,7 +43,7 @@ func (a *App) setupRoutes() {
 	})
 
 	a.router.Group(func(r chi.Router) {
-		// r.Use(middleware.AuthMiddleWare)
+		r.Use(middleware.AuthMiddleWare)
 		r.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
 		r.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
 		r.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
