@@ -35,25 +35,20 @@ func (a *App) setupRoutes() {
 	// MiddleWare
 	a.router.Use(middleware.GzipMiddleware)
 	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
-	a.router.Use(middleware.AuthMiddleWare)
 
-	// POST /api/shorten/batch
-	a.router.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
+	a.router.Group(func(r chi.Router) {
+		r.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))
+		r.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
+		r.Get("/ping", handlers.NewPingHandler(a.storage, a.sugar))
+	})
 
-	// POST /api/shorten
-	a.router.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
+	a.router.Group(func(r chi.Router) {
+		// r.Use(middleware.AuthMiddleWare)
+		r.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
+		r.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
+		r.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
 
-	// POST
-	a.router.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))
-
-	// GET
-	a.router.Get("/{id}", handlers.NewRedirect(a.storage, a.sugar))
-
-	// GET PING
-	a.router.Get("/ping", handlers.NewPingHandler(a.storage, a.sugar))
-
-	// GET /api/user/urls
-	a.router.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
+	})
 }
 
 func (a *App) Run(addr string) error {

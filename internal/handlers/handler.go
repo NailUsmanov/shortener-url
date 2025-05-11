@@ -20,24 +20,17 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 	return func(w http.ResponseWriter, r *http.Request) {
 		sugar.Infof("Request headers: %+v", r.Header)
 
-		// Получаем UserID из контекста
-		userID, ok := r.Context().Value("user_id").(string)
-		if !ok || userID == "" {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		// Проверяем метод
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
 			return
 		}
 		// Проверяем Content-Type
-		contentType := r.Header.Get("Content-Type")
-		if contentType != "" && !strings.HasPrefix(contentType, "text/plain") {
-			http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
-			return
-		}
+		// contentType := r.Header.Get("Content-Type")
+		// if contentType != "" && !strings.HasPrefix(contentType, "text/plain") {
+		// 	http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
+		// 	return
+		// }
 		sugar.Infof("Content-Type: %s", r.Header.Get("Content-Type"))
 		// Читаем тело запроса
 		body, err := io.ReadAll(r.Body)
@@ -63,6 +56,8 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
 			return
 		}
+		// Получаем userID из контекста
+		userID, _ := r.Context().Value("user_id").(string)
 
 		// Проверяем наличие оригинального УРЛ в нашей мапе
 		existsKey, err := s.GetByURL(r.Context(), rawURL, userID)

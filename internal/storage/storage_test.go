@@ -17,7 +17,8 @@ func TestInMemoryStorage(t *testing.T) {
 	s := NewMemoryStorage()
 	t.Run("Save and Get", func(t *testing.T) {
 		url := "http://example.com"
-		key, err := s.Save(context.Background(), url)
+		userID := "user1"
+		key, err := s.Save(context.Background(), url, userID)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, key)
 
@@ -44,14 +45,15 @@ func TestInMemoryStorage(t *testing.T) {
 	t.Run("Get By URL", func(t *testing.T) {
 		s := NewMemoryStorage()
 		url := "http://example.com"
+		userID := "user1"
 
-		shortURL, err := s.Save(context.Background(), url)
+		shortURL, err := s.Save(context.Background(), url, userID)
 		require.NoError(t, err)
 
-		_, err = s.Save(context.Background(), url)
+		_, err = s.Save(context.Background(), url, userID)
 		assert.ErrorIs(t, err, ErrAlreadyHasKey)
 
-		key, err := s.GetByURL(context.Background(), url)
+		key, err := s.GetByURL(context.Background(), url, userID)
 		assert.NoError(t, err)
 		assert.Equal(t, shortURL, key)
 
@@ -60,7 +62,8 @@ func TestInMemoryStorage(t *testing.T) {
 	t.Run("Non-existent URL", func(t *testing.T) {
 		s := NewMemoryStorage()
 		url := "http://example.com"
-		key, err := s.GetByURL(context.Background(), url)
+		userID := "user1"
+		key, err := s.GetByURL(context.Background(), url, userID)
 		assert.NoError(t, err)
 		assert.Empty(t, key)
 	})
@@ -69,8 +72,8 @@ func TestInMemoryStorage(t *testing.T) {
 		s := NewMemoryStorage()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-
-		_, err := s.GetByURL(ctx, "http://example.com")
+		userID := "user1"
+		_, err := s.GetByURL(ctx, "http://example.com", userID)
 		assert.ErrorIs(t, err, context.Canceled)
 	})
 }
@@ -114,8 +117,9 @@ func TestFileStorage(t *testing.T) {
 
 	t.Run("Save New URL", func(t *testing.T) {
 		s := NewFileStorage(tmpFile.Name())
+		userID := "user1"
 		url := "http://new-example.com"
-		key, err := s.Save(context.Background(), url)
+		key, err := s.Save(context.Background(), url, userID)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, key)
 
@@ -151,7 +155,8 @@ func TestFileStorage(t *testing.T) {
 		assert.NotNil(t, s)
 
 		// Проверяем что можем сохранять/получать несмотря на отсутствие файла
-		key, err := s.Save(context.Background(), "http://new-url.com")
+		userID := "user1"
+		key, err := s.Save(context.Background(), "http://new-url.com", userID)
 		assert.NoError(t, err)
 
 		val, err := s.Get(context.Background(), key)
@@ -177,7 +182,8 @@ func TestPostgresStorage(t *testing.T) {
 
 	t.Run("Save and Get", func(t *testing.T) {
 		url := "http://example.com"
-		key, err := s.Save(ctx, url)
+		userID := "user1"
+		key, err := s.Save(ctx, url, userID)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, key)
 
@@ -188,10 +194,12 @@ func TestPostgresStorage(t *testing.T) {
 
 	t.Run("Save duplicate URL", func(t *testing.T) {
 		url := "http://duplicate.com"
-		key1, err := s.Save(ctx, url)
+		userID := "user1"
+		key1, err := s.Save(ctx, url, userID)
 		assert.NoError(t, err)
 
-		key2, err := s.Save(ctx, url)
+		userID2 := "user2"
+		key2, err := s.Save(ctx, url, userID2)
 		assert.NoError(t, err)
 		assert.Equal(t, key1, key2, "Should return same key for same URL")
 	})
@@ -227,7 +235,8 @@ func TestPostgresStorage_SaveInBatch(t *testing.T) {
 	}
 
 	t.Run("Save batch with duplicates", func(t *testing.T) {
-		keys, err := s.SaveInBatch(ctx, urls)
+		userID := "user1"
+		keys, err := s.SaveInBatch(ctx, urls, userID)
 		assert.NoError(t, err)
 		assert.Len(t, keys, len(urls))
 		assert.Equal(t, keys[0], keys[2], "Duplicate URLs should return same keys")
