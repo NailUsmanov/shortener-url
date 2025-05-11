@@ -20,6 +20,13 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 	return func(w http.ResponseWriter, r *http.Request) {
 		sugar.Infof("Request headers: %+v", r.Header)
 
+		// Получаем UserID из контекста
+		userID, ok := r.Context().Value("user_id").(string)
+		if !ok || userID == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		// Проверяем метод
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
@@ -58,7 +65,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 
 		// Проверяем наличие оригинального УРЛ в нашей мапе
-		existsKey, err := s.GetByURL(r.Context(), rawURL)
+		existsKey, err := s.GetByURL(r.Context(), rawURL, userID)
 		if err == nil && existsKey != "" {
 			sugar.Infof("URL already exists: %s -> %s", rawURL, existsKey)
 			w.Header().Set("Content-Type", "text/plain")
@@ -75,7 +82,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		}
 
 		// Сохраняем URL
-		key, err := s.Save(r.Context(), rawURL)
+		key, err := s.Save(r.Context(), rawURL, userID)
 		if err != nil {
 			sugar.Errorf("Failed to save URL: %v", err)
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
@@ -121,6 +128,13 @@ func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFun
 func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
+		// Получаем UserID из контекста
+		userID, ok := r.Context().Value("user_id").(string)
+		if !ok || userID == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
 		// Проверяем метод
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
@@ -147,7 +161,7 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		}
 
 		// Сохраняем URL
-		key, err := s.Save(r.Context(), req.URL)
+		key, err := s.Save(r.Context(), req.URL, userID)
 		if err != nil {
 			if errors.Is(err, storage.ErrAlreadyHasKey) {
 				var resp models.Response
@@ -181,6 +195,13 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 
 func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Получаем UserID из контекста
+
+		userID, ok := r.Context().Value("user_id").(string)
+		if !ok || userID == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 
 		// Строгая проверка Content-Type
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -219,12 +240,12 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 			urls = append(urls, item.OriginalURL)
 		}
 
-		keys, err := s.SaveInBatch(r.Context(), urls)
+		keys, err := s.SaveInBatch(r.Context(), urls, userID)
 		if err != nil {
 			if errors.Is(err, storage.ErrAlreadyHasKey) {
 
 				for _, url := range urls {
-					if key, err := s.GetByURL(r.Context(), url); err == nil {
+					if key, err := s.GetByURL(r.Context(), url, userID); err == nil {
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusConflict)
 						json.NewEncoder(w).Encode(map[string]string{
@@ -254,6 +275,43 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
+
+		enc := json.NewEncoder(w)
+		if err := enc.Encode(resp); err != nil {
+			sugar.Error("error encoding response:", err)
+		}
+	}
+}
+
+// GET /api/user/urls
+func GetUserURLS(s storage.Storage, baseURl string, sugar *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ID, ok := r.Context().Value("user_id").(string)
+		if !ok || ID == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		urls, err := s.GetUserURLS(r.Context(), ID)
+		if err != nil {
+			sugar.Errorf("GetUserURLS error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if len(urls) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		var resp []models.UserURLs
+		for short, original := range urls {
+			resp = append(resp, models.UserURLs{
+				ShortURL:    baseURl + "/" + short,
+				OriginalURL: original,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 
 		enc := json.NewEncoder(w)
 		if err := enc.Encode(resp); err != nil {

@@ -35,6 +35,7 @@ func (a *App) setupRoutes() {
 	// MiddleWare
 	a.router.Use(middleware.GzipMiddleware)
 	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
+	a.router.Use(middleware.AuthMiddleWare)
 
 	// POST /api/shorten/batch
 	a.router.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
@@ -51,6 +52,8 @@ func (a *App) setupRoutes() {
 	// GET PING
 	a.router.Get("/ping", handlers.NewPingHandler(a.storage, a.sugar))
 
+	// GET /api/user/urls
+	a.router.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
 }
 
 func (a *App) Run(addr string) error {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -29,26 +30,27 @@ type ShortURLJSON struct {
 	UUID        int    `json:"uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id"`
 }
 
-func (f *FileStorage) Save(ctx context.Context, url string) (string, error) {
+func (f *FileStorage) Save(ctx context.Context, url string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	default:
 	}
 
-	if key, err := f.GetByURL(ctx, url); err == nil && key != "" {
+	if key, err := f.GetByURL(ctx, url, userID); err == nil && key != "" {
 		return key, ErrAlreadyHasKey
 	}
 
-	key, err := f.memory.Save(ctx, url)
+	key, err := f.memory.Save(ctx, url, userID)
 	if err != nil {
 		return "", err
 	}
 
 	if f.filePath != "" {
-		f.saveToFile(key, url)
+		f.saveToFile(key, url, userID)
 
 	}
 	return key, nil
@@ -64,7 +66,7 @@ func (f *FileStorage) Get(ctx context.Context, key string) (string, error) {
 }
 
 // Доп метод для сохранения в файл
-func (f *FileStorage) saveToFile(key, url string) error {
+func (f *FileStorage) saveToFile(key, url string, userID string) error {
 	f.saveMutex.Lock()
 	defer f.saveMutex.Unlock()
 
@@ -79,6 +81,7 @@ func (f *FileStorage) saveToFile(key, url string) error {
 		UUID:        f.lastUUID,
 		ShortURL:    key,
 		OriginalURL: url,
+		UserID:      userID,
 	}
 	return json.NewEncoder(file).Encode(record)
 }
@@ -103,7 +106,10 @@ func (f *FileStorage) loadFromFile() {
 			fmt.Printf("Error parsing JSON: %v\n", err)
 			continue
 		}
-		f.memory.data[record.ShortURL] = record.OriginalURL
+		f.memory.data[record.ShortURL] = URLData{
+			OriginalURL: record.OriginalURL,
+			UserID:      record.UserID,
+		}
 		if record.UUID > f.lastUUID {
 			f.lastUUID = record.UUID
 		}
@@ -119,7 +125,7 @@ func (f *FileStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	// Проверяем, не отменен ли контекст
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -134,20 +140,43 @@ func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string) ([]string,
 	return keys, nil
 }
 
-func (f *FileStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+func (f *FileStorage) GetByURL(ctx context.Context, originalURL string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	default:
 	}
 
-	f.saveMutex.Lock()
-	defer f.saveMutex.Unlock()
+	f.memory.mu.RLock()
+	defer f.memory.mu.RUnlock()
 
 	for short, url := range f.memory.data {
-		if url == originalURL {
+		if url.OriginalURL == originalURL {
+			if url.UserID != userID {
+				return "", errors.New("User isnt find")
+			}
 			return short, nil
 		}
 	}
-	return "", nil
+	return "", errors.New("URL isn't find")
+}
+
+func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	result := make(map[string]string)
+	f.memory.mu.RLock()
+	defer f.memory.mu.RUnlock()
+
+	for short, data := range f.memory.data {
+		if data.UserID == userID {
+			result[short] = data.OriginalURL
+		}
+	}
+
+	return result, nil
 }
