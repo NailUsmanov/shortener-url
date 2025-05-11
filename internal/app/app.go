@@ -6,7 +6,6 @@ import (
 	"github.com/NailUsmanov/practicum-shortener-url/internal/handlers"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
-	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"github.com/go-chi/chi"
 	"go.uber.org/zap"
 )
@@ -20,8 +19,6 @@ type App struct {
 
 func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 	r := chi.NewRouter()
-	middleware.InitAuthMiddleWare(&config.Config{
-		CookieSecretKey: []byte("test-secret-key")}, sugar)
 	app := &App{
 		router:  r, //разыменовываем указатель
 		storage: s,
@@ -36,7 +33,7 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 func (a *App) setupRoutes() {
 	// MiddleWare
 	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
-	a.router.Use(middleware.AuthMiddleWare)
+	a.router.Use(middleware.AuthMiddleware)
 	a.router.Use(middleware.GzipMiddleware)
 
 	a.router.Post("/", handlers.NewCreateShortURL(a.storage, a.baseURL, a.sugar))

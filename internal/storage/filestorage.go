@@ -50,7 +50,9 @@ func (f *FileStorage) Save(ctx context.Context, url string, userID string) (stri
 	}
 
 	if f.filePath != "" {
-		f.saveToFile(key, url, userID)
+		if err := f.saveToFile(key, url, userID); err != nil {
+			return "", fmt.Errorf("failed to save to file: %w", err)
+		}
 
 	}
 	return key, nil
