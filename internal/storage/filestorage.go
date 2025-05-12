@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -192,7 +191,7 @@ func (f *FileStorage) GetByURL(ctx context.Context, originalURL string, userID s
 			return short, nil
 		}
 	}
-	return "", errors.New("url isn't find")
+	return "", ErrNotFound
 }
 
 func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {
