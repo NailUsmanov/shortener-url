@@ -67,23 +67,18 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 
 		// Проверяем наличие оригинального УРЛ в нашей мапе
 		existsKey, err := s.GetByURL(r.Context(), rawURL, userID)
-		if err != nil && !errors.Is(err, storage.ErrNotFound) {
-			sugar.Errorf("Storage error: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+		if err != nil {
+			if !errors.Is(err, storage.ErrNotFound) {
+				sugar.Errorf("Storage unexpected error: %v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 		if existsKey != "" {
 			sugar.Infof("URL exists: %s -> %s", rawURL, existsKey)
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusConflict)
 			fmt.Fprintf(w, "%s/%s", baseURL, existsKey) // Используем fmt.Fprintf вместо Write
-			return
-		}
-
-		// Обрабатываем другие ошибки (кроме "не найдено")
-		if err != nil {
-			sugar.Errorf("Error checking URL existence: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
