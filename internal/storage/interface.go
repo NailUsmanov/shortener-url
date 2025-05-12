@@ -1,6 +1,12 @@
 package storage
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var ErrNotFound = errors.New("not found")
+var ErrAlreadyHasKey = errors.New("url already exists")
 
 type BasicStorage interface {
 	Save(ctx context.Context, url string, userID string) (string, error)
