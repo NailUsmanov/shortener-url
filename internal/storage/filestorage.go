@@ -17,7 +17,7 @@ type FileStorage struct {
 	saveMutex sync.Mutex
 }
 
-func NewFileStorage(filePath string) *FileStorage {
+func NewFileStorage(filePath string) (*FileStorage, error) {
 
 	s := &FileStorage{
 		memory:   NewMemoryStorage(),
@@ -26,12 +26,12 @@ func NewFileStorage(filePath string) *FileStorage {
 	if filePath != "" {
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
 			if err := os.WriteFile(filePath, []byte{}, 0644); err != nil {
-				panic(fmt.Sprintf("Cannot create storage file: %v", err))
+				return nil, fmt.Errorf("cannot create storage file: %w", err)
 			}
 		}
 		s.loadFromFile()
 	}
-	return s
+	return s, nil
 
 }
 

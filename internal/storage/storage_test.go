@@ -101,7 +101,8 @@ func TestFileStorage(t *testing.T) {
 	tmpFile.Close()
 
 	t.Run("Initialization and load from file", func(t *testing.T) {
-		s := NewFileStorage(tmpFile.Name())
+		s, err := NewFileStorage(tmpFile.Name())
+		assert.NoError(t, err)
 
 		val, err := s.Get(context.Background(), "test123")
 		assert.NoError(t, err)
@@ -116,7 +117,7 @@ func TestFileStorage(t *testing.T) {
 	})
 
 	t.Run("Save New URL", func(t *testing.T) {
-		s := NewFileStorage(tmpFile.Name())
+		s, _ := NewFileStorage(tmpFile.Name())
 		userID := "user1"
 		url := "http://new-example.com"
 		key, err := s.Save(context.Background(), url, userID)
@@ -151,7 +152,8 @@ func TestFileStorage(t *testing.T) {
 		nonExistentFile := "non-existent-file.json"
 		defer os.Remove(nonExistentFile)
 
-		s := NewFileStorage(nonExistentFile)
+		s, err := NewFileStorage(nonExistentFile)
+		assert.NoError(t, err)
 		assert.NotNil(t, s)
 
 		// Проверяем что можем сохранять/получать несмотря на отсутствие файла
