@@ -19,6 +19,10 @@ import (
 
 func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s == nil {
+			http.Error(w, "storage is nil", http.StatusInternalServerError)
+			return
+		}
 		sugar.Infof("Request headers: %+v", r.Header)
 
 		// Проверяем метод
