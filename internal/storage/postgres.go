@@ -26,6 +26,7 @@ var PrepareSQL string = `INSERT INTO short_urls (original_url, short_url, user_i
 var SelectOriginalURL string = `SELECT original_url FROM short_urls WHERE short_url = $1`
 var SelectAllOriginalURL string = "SELECT short_url, original_url FROM short_urls WHERE user_id = $1"
 var ErrAlreadyHasKey = errors.New("key is exists")
+var ErrNotFound = errors.New("err not found")
 
 func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	db, err := sql.Open("pgx", dsn)

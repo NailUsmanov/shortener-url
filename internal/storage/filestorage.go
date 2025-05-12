@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"sync"
-	"syscall"
 )
 
 type FileStorage struct {
@@ -20,17 +18,21 @@ type FileStorage struct {
 }
 
 func NewFileStorage(filePath string) *FileStorage {
-	if filePath != "" {
-		if err := os.Chmod(filePath, 0644); err != nil {
-			log.Printf("Не удалось установить права на файл: %v", err)
-		}
-	}
+
 	s := &FileStorage{
 		memory:   NewMemoryStorage(),
 		filePath: filePath,
 	}
-	s.loadFromFile()
+	if filePath != "" {
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			if err := os.WriteFile(filePath, []byte{}, 0644); err != nil {
+				panic(fmt.Sprintf("Cannot create storage file: %v", err))
+			}
+		}
+		s.loadFromFile()
+	}
 	return s
+
 }
 
 type ShortURLJSON struct {
@@ -81,30 +83,29 @@ func (f *FileStorage) saveToFile(key, url string, userID string) error {
 	f.saveMutex.Lock()
 	defer f.saveMutex.Unlock()
 
-	file, err := os.OpenFile(f.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND|os.O_SYNC, 0644)
+	// 1. Открытие файла с правильными флагами
+	file, err := os.OpenFile(f.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("file open error: %w", err)
 	}
 	defer file.Close()
-	f.lastUUID++
-	// Блокируем файл
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
-		return err
-	}
-	defer syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 
+	f.lastUUID++
 	record := ShortURLJSON{
 		UUID:        f.lastUUID,
 		ShortURL:    key,
 		OriginalURL: url,
 		UserID:      userID,
 	}
+
 	encoder := json.NewEncoder(file)
 	if err := encoder.Encode(record); err != nil {
 		return fmt.Errorf("failed to encode JSON: %v", err)
 	}
-
-	f.lastUUID++ // Увеличиваем после успешной записи
+	// 4. Синхронизация записи
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("sync error: %w", err)
+	}
 	return nil
 }
 

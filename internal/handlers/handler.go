@@ -58,6 +58,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		// Проверяем валидность URL
 		_, err = url.ParseRequestURI(rawURL)
 		if err != nil {
+			sugar.Errorf("Invalid URL: %s", rawURL)
 			http.Error(w, "Invalid URL format", http.StatusBadRequest)
 			return
 		}
@@ -66,11 +67,16 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 
 		// Проверяем наличие оригинального УРЛ в нашей мапе
 		existsKey, err := s.GetByURL(r.Context(), rawURL, userID)
-		if err == nil && existsKey != "" {
-			sugar.Infof("URL already exists: %s -> %s", rawURL, existsKey)
+		if err != nil && !errors.Is(err, storage.ErrNotFound) {
+			sugar.Errorf("Storage error: %v", err)
+			http.Error(w, "Storage error", http.StatusInternalServerError)
+			return
+		}
+		if existsKey != "" {
+			sugar.Infof("URL exists: %s -> %s", rawURL, existsKey)
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte(baseURL + "/" + existsKey))
+			fmt.Fprintf(w, "%s/%s", baseURL, existsKey) // Используем fmt.Fprintf вместо Write
 			return
 		}
 
@@ -84,11 +90,16 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		// Сохраняем URL
 		key, err := s.Save(r.Context(), rawURL, userID)
 		if err != nil {
-			sugar.Errorf("Failed to save URL: %v", err)
-			http.Error(w, "Invalid URL format", http.StatusBadRequest)
+			if errors.Is(err, storage.ErrAlreadyHasKey) {
+				w.Header().Set("Content-Type", "text/plain")
+				w.WriteHeader(http.StatusConflict)
+				fmt.Fprintf(w, "%s/%s", baseURL, key)
+				return
+			}
+			sugar.Errorf("Save error: %v", err)
+			http.Error(w, "Save error", http.StatusInternalServerError)
 			return
 		}
-
 		// Возвращаем ответ
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
