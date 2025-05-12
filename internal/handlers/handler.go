@@ -69,7 +69,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		existsKey, err := s.GetByURL(r.Context(), rawURL, userID)
 		if err != nil && !errors.Is(err, storage.ErrNotFound) {
 			sugar.Errorf("Storage error: %v", err)
-			http.Error(w, "Storage error", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		if existsKey != "" {
