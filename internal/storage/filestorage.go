@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"syscall"
@@ -19,6 +20,11 @@ type FileStorage struct {
 }
 
 func NewFileStorage(filePath string) *FileStorage {
+	if filePath != "" {
+		if err := os.Chmod(filePath, 0644); err != nil {
+			log.Printf("Не удалось установить права на файл: %v", err)
+		}
+	}
 	s := &FileStorage{
 		memory:   NewMemoryStorage(),
 		filePath: filePath,
@@ -75,7 +81,7 @@ func (f *FileStorage) saveToFile(key, url string, userID string) error {
 	f.saveMutex.Lock()
 	defer f.saveMutex.Unlock()
 
-	file, err := os.OpenFile(f.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	file, err := os.OpenFile(f.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND|os.O_SYNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -113,6 +119,14 @@ func (f *FileStorage) loadFromFile() {
 		return
 	}
 	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return
+	}
+	if fileInfo.Size() == 0 {
+		return
+	}
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
