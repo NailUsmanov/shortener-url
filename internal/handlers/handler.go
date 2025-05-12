@@ -97,7 +97,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 				return
 			}
 			sugar.Errorf("Save error: %v", err)
-			http.Error(w, "Save error", http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 		// Возвращаем ответ
@@ -177,6 +177,7 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 		key, err := s.Save(r.Context(), req.URL, userID)
 		if err != nil {
 			if errors.Is(err, storage.ErrAlreadyHasKey) {
+				sugar.Errorf("Save error: %v", err)
 				var resp models.Response
 				resp.Result = baseURL + "/" + key
 				w.Header().Set("Content-Type", "application/json")
