@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"syscall"
 )
 
 type FileStorage struct {
@@ -46,11 +47,13 @@ func (f *FileStorage) Save(ctx context.Context, url string, userID string) (stri
 
 	key, err := f.memory.Save(ctx, url, userID)
 	if err != nil {
+		fmt.Printf("Memory save error: %v\n", err)
 		return "", err
 	}
 
 	if f.filePath != "" {
 		if err := f.saveToFile(key, url, userID); err != nil {
+			fmt.Printf("File save error: %v\n", err) // Логируем ошибку записи
 			return "", fmt.Errorf("failed to save to file: %w", err)
 		}
 
@@ -78,9 +81,14 @@ func (f *FileStorage) saveToFile(key, url string, userID string) error {
 	}
 	defer file.Close()
 	f.lastUUID++
+	// Блокируем файл
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 
 	record := ShortURLJSON{
-		UUID:        f.lastUUID + 1,
+		UUID:        f.lastUUID,
 		ShortURL:    key,
 		OriginalURL: url,
 		UserID:      userID,
@@ -109,6 +117,9 @@ func (f *FileStorage) loadFromFile() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue // Пропускаем пустые строки
+		}
 		var record ShortURLJSON
 		if err := json.Unmarshal(line, &record); err != nil {
 			fmt.Printf("error parsing JSON: %v\n", err)
@@ -161,7 +172,7 @@ func (f *FileStorage) GetByURL(ctx context.Context, originalURL string, userID s
 	for short, url := range f.memory.data {
 		if url.OriginalURL == originalURL {
 			if url.UserID != userID {
-				return "", errors.New("user isnt find")
+				return "", nil
 			}
 			return short, nil
 		}
