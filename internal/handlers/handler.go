@@ -83,7 +83,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 		// Обрабатываем другие ошибки (кроме "не найдено")
 		if err != nil {
 			sugar.Errorf("Error checking URL existence: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
