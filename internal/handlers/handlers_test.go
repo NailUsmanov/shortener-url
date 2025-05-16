@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,7 +44,7 @@ func (m *MockStorage) Get(ctx context.Context, key string) (string, error) {
 	if url, exists := m.data[key]; exists {
 		return url.originalURL, nil
 	}
-	return "", errors.New("URL not found")
+	return "", storage.ErrNotFound
 }
 
 func (m *MockStorage) Ping(ctx context.Context) error {
