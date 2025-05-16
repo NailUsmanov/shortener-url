@@ -53,6 +53,7 @@ func (a *App) setupRoutes() {
 	a.router.Post("/api/shorten", handlers.NewCreateShortURLJSON(a.storage, a.baseURL, a.sugar))
 	a.router.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
 	a.router.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
+	a.router.Delete("/api/user/urls", handlers.DeleteHandler(a.storage, a.sugar, a.deleteChan))
 }
 
 func (a *App) Run(addr string) error {
