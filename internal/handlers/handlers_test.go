@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/tasks"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,6 +76,15 @@ func (m *MockStorage) GetUserURLS(ctx context.Context, userID string) (map[strin
 		return nil, nil
 	}
 	return result, nil
+}
+
+func (m *MockStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+	for _, shortURL := range urls {
+		if _, exists := m.data[shortURL]; !exists {
+			return fmt.Errorf("shortURL %s not found", shortURL)
+		}
+	}
+	return nil
 }
 
 func TestCreateShortURL(t *testing.T) {
@@ -470,5 +482,77 @@ func TestGetUserURLS(t *testing.T) {
 		defer res.Body.Close()
 
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+}
+
+func TestDeleteHandler(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	sugar := logger.Sugar()
+	defer logger.Sync()
+
+	mockStore := &MockStorage{data: map[string]URLData{
+		"abc123": {originalURL: "http://example.com", userID: "test-user"},
+		"def456": {originalURL: "http://test.com", userID: "test-user"},
+	}}
+
+	ch := make(chan tasks.DeleteTask, 1)
+
+	handler := DeleteHandler(mockStore, sugar, ch)
+
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), middleware.UserIDKey, "test-user")
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+	r.Delete("/api/user/urls", handler)
+
+	t.Run("valid request", func(t *testing.T) {
+		payload, _ := json.Marshal([]string{"abc123", "def456"})
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusAccepted, rr.Code)
+
+		select {
+		case task := <-ch:
+			require.Equal(t, "test-user", task.UserID)
+			require.ElementsMatch(t, []string{"abc123", "def456"}, task.ShortURLs)
+		default:
+			t.Fatal("task not sent to channel")
+		}
+	})
+
+	t.Run("missing content type", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader([]byte(`["abc123"]`)))
+		rr := httptest.NewRecorder()
+
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader([]byte{}))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("no user id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader([]byte(`["abc123"]`)))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		DeleteHandler(mockStore, sugar, ch).ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
 }

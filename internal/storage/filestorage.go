@@ -213,3 +213,7 @@ func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[strin
 
 	return result, nil
 }
+
+func (f *FileStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+	return nil
+}

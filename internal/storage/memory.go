@@ -16,6 +16,7 @@ type MemoryStorage struct {
 type URLData struct {
 	OriginalURL string
 	UserID      string
+	Deleted     bool
 }
 
 func NewMemoryStorage() *MemoryStorage {
@@ -61,6 +62,10 @@ func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
 	url, exists := s.data[key]
 	if !exists {
 		return "", fmt.Errorf("url not found")
+	}
+
+	if url.Deleted {
+		return "", ErrDeleted
 	}
 
 	return url.OriginalURL, nil
@@ -109,11 +114,10 @@ func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string, userID
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for shortURL, url := range s.data {
-		if url.OriginalURL == OriginalURL {
-			if url.UserID != userID {
-				return "", errors.New("user not found")
+		if url.OriginalURL == OriginalURL && url.UserID == userID {
+			if !url.Deleted {
+				return shortURL, nil
 			}
-			return shortURL, nil
 		}
 	}
 	return "", nil
@@ -130,9 +134,22 @@ func (s *MemoryStorage) GetUserURLS(ctx context.Context, userID string) (map[str
 
 	AllURLS := map[string]string{}
 	for short, url := range s.data {
-		if url.UserID == userID {
+		if url.UserID == userID && !url.Deleted {
 			AllURLS[short] = url.OriginalURL
 		}
 	}
 	return AllURLS, nil
+}
+
+func (m *MemoryStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+	for _, shortURL := range urls {
+		data, exists := m.data[shortURL]
+		if exists && data.UserID == userID {
+			data.Deleted = true
+			m.data[shortURL] = data
+		} else {
+			return errors.New("err not found")
+		}
+	}
+	return nil
 }

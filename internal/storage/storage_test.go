@@ -251,3 +251,29 @@ func TestPostgresStorage_SaveInBatch(t *testing.T) {
 		}
 	})
 }
+
+func TestMarkAsDeleted(t *testing.T) {
+	storage := NewMemoryStorage()
+	originalURL := "http://testcase.com"
+	originalURL1 := "http://testcase1.com"
+	userID := "user1"
+	ctx := context.Background()
+
+	shortURL, err := storage.Save(ctx, originalURL, userID)
+	require.NoError(t, err)
+	shortURL1, err := storage.Save(ctx, originalURL1, userID)
+	require.NoError(t, err)
+
+	t.Run("Correct deletion", func(t *testing.T) {
+		arrURL := []string{shortURL, shortURL1}
+		err := storage.MarkAsDeleted(ctx, arrURL, userID)
+		require.NoError(t, err)
+
+		// Проверим, что теперь Get вернёт ошибку (заглушка должна это поддерживать)
+		_, err = storage.Get(ctx, shortURL)
+		require.Error(t, err)
+
+		_, err = storage.Get(ctx, shortURL1)
+		require.Error(t, err)
+	})
+}

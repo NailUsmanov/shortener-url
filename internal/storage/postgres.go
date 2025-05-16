@@ -3,13 +3,16 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 )
 
 type DataBaseStorage struct {
@@ -24,6 +27,8 @@ var PrepareSQL string = `INSERT INTO short_urls (original_url, short_url, user_i
     RETURNING short_url`
 var SelectOriginalURL string = `SELECT original_url FROM short_urls WHERE short_url = $1`
 var SelectAllOriginalURL string = "SELECT short_url, original_url FROM short_urls WHERE user_id = $1"
+var IS_DELETED_SQL string = "UPDATE short_urls SET is_deleted = true WHERE short_url = ANY($1) AND user_id = $2;"
+var SelectOriginalURLWithFlag string = "SELECT original_url, is_deleted FROM shorts_urls WHERE short_url = $1"
 
 func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	db, err := sql.Open("pgx", dsn)
@@ -81,16 +86,19 @@ func (d *DataBaseStorage) Save(ctx context.Context, url string, userID string) (
 }
 
 func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
-
-	row := d.db.QueryRowContext(ctx, SelectOriginalURL, key)
-
 	var originalURL string
-	err := row.Scan(&originalURL)
+	var isDeleted bool
+
+	row := d.db.QueryRowContext(ctx, SelectOriginalURLWithFlag, key)
+	err := row.Scan(&originalURL, &isDeleted)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", fmt.Errorf("URL not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
 		}
 		return "", fmt.Errorf("failed to get URL: %v", err)
+	}
+	if isDeleted {
+		return "", ErrDeleted
 	}
 	return originalURL, nil
 }
@@ -195,4 +203,19 @@ func (d *DataBaseStorage) GetUserURLS(ctx context.Context, userID string) (map[s
 		result[short] = original
 	}
 	return result, nil
+}
+
+func (d *DataBaseStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	_, err := d.db.ExecContext(ctx, IS_DELETED_SQL, pq.Array(urls), userID)
+	if err != nil {
+		log.Println("err with SQL request")
+		return err
+	}
+	return nil
 }

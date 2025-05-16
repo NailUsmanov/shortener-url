@@ -7,6 +7,7 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrAlreadyHasKey = errors.New("url already exists")
+var ErrDeleted = errors.New("url deleted")
 
 type BasicStorage interface {
 	Save(ctx context.Context, url string, userID string) (string, error)
@@ -23,8 +24,13 @@ type URLFinder interface {
 	GetUserURLS(ctx context.Context, userID string) (map[string]string, error)
 }
 
+type URLDeleter interface {
+	MarkAsDeleted(ctx context.Context, urls []string, userID string) error
+}
+
 type Storage interface {
 	BasicStorage
 	BatchStorage
 	URLFinder
+	URLDeleter
 }
