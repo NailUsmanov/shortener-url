@@ -141,12 +141,12 @@ func (s *MemoryStorage) GetUserURLS(ctx context.Context, userID string) (map[str
 	return AllURLS, nil
 }
 
-func (m *MemoryStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+func (s *MemoryStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
 	for _, shortURL := range urls {
-		data, exists := m.data[shortURL]
+		data, exists := s.data[shortURL]
 		if exists && data.UserID == userID {
 			data.Deleted = true
-			m.data[shortURL] = data
+			s.data[shortURL] = data
 		} else {
 			return errors.New("err not found")
 		}
