@@ -115,6 +115,9 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 		}
 		// 2. Ищем оригинальный URL
 		url, err := s.Get(r.Context(), key)
+		if err != nil {
+			sugar.Errorf("redirect error: %v", err)
+		}
 		switch {
 		case errors.Is(err, storage.ErrDeleted):
 			http.Error(w, "URL deleted", http.StatusGone)

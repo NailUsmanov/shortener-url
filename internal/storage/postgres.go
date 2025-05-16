@@ -28,7 +28,7 @@ var PrepareSQL string = `INSERT INTO short_urls (original_url, short_url, user_i
 var SelectOriginalURL string = `SELECT original_url FROM short_urls WHERE short_url = $1`
 var SelectAllOriginalURL string = "SELECT short_url, original_url FROM short_urls WHERE user_id = $1"
 var IsDeletedSQL string = "UPDATE short_urls SET is_deleted = true WHERE short_url = ANY($1) AND user_id = $2;"
-var SelectOriginalURLWithFlag string = "SELECT original_url, is_deleted FROM shorts_urls WHERE short_url = $1"
+var SelectOriginalURLWithFlag string = "SELECT original_url, is_deleted FROM short_urls WHERE short_url = $1"
 
 func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	db, err := sql.Open("pgx", dsn)
