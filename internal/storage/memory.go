@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 )
@@ -61,7 +60,7 @@ func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
 
 	url, exists := s.data[key]
 	if !exists {
-		return "", fmt.Errorf("url not found")
+		return "", ErrNotFound
 	}
 
 	if url.Deleted {
