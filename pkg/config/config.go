@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"strings"
@@ -9,10 +10,11 @@ import (
 )
 
 type Config struct {
-	RunAddr    string `env:"SERVER_ADDRESS" envDefault:":8080"`
-	BaseURL    string `env:"BASE_URL"`
-	SaveInFile string `env:"FILE_STORAGE_PATH"`
-	DataBase   string `env:"DATABASE_DSN"`
+	RunAddr         string `env:"SERVER_ADDRESS" envDefault:":8080"`
+	BaseURL         string `env:"BASE_URL"`
+	SaveInFile      string `env:"FILE_STORAGE_PATH"`
+	DataBase        string `env:"DATABASE_DSN"`
+	CookieSecretKey []byte `env:"COOKIE_SECRET_KEY"`
 }
 
 var (
@@ -67,5 +69,19 @@ func NewConfig() (*Config, error) {
 		cfg.BaseURL = fmt.Sprintf("http://%s", hostPort)
 	}
 
+	// Генерируем ключ ТОЛЬКО если он не задан через ENV
+	if len(cfg.CookieSecretKey) == 0 {
+		cfg.CookieSecretKey = GenerateKeyToken()
+	}
+
 	return cfg, nil
+}
+
+func GenerateKeyToken() []byte {
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		panic(err)
+	}
+	return key
 }

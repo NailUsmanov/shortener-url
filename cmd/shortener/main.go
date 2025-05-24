@@ -30,7 +30,11 @@ func main() {
 	var store storage.Storage
 
 	if cfg.SaveInFile != "" {
-		store = storage.NewFileStorage(cfg.SaveInFile)
+		sugar.Infof("Using file storage at: %s", cfg.SaveInFile)
+		store, err = storage.NewFileStorage(cfg.SaveInFile)
+		if err != nil {
+			sugar.Fatalf("failed to initialize file storage: %v", err)
+		}
 		sugar.Info("Using file storage")
 	} else if cfg.DataBase != "" {
 		store, err = storage.NewDataBaseStorage(cfg.DataBase)

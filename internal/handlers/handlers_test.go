@@ -1,14 +1,19 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/tasks"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,28 +22,36 @@ import (
 
 const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-type MockStorage struct {
-	data map[string]string
+type URLData struct {
+	originalURL string
+	userID      string
 }
 
-func (m *MockStorage) Save(ctx context.Context, url string) (string, error) {
+type MockStorage struct {
+	data map[string]URLData
+}
+
+func (m *MockStorage) Save(ctx context.Context, url string, userID string) (string, error) {
 	key := "mock123"
-	m.data[key] = url
+	m.data[key] = URLData{
+		originalURL: url,
+		userID:      userID,
+	}
 	return key, nil
 }
 
 func (m *MockStorage) Get(ctx context.Context, key string) (string, error) {
 	if url, exists := m.data[key]; exists {
-		return url, nil
+		return url.originalURL, nil
 	}
-	return "", errors.New("URL not found")
+	return "", storage.ErrNotFound
 }
 
 func (m *MockStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	keys := make([]string, len(urls))
 	for i := range urls {
 		keys[i] = "mock123" // Генерируем уникальные ключи
@@ -46,8 +59,31 @@ func (m *MockStorage) SaveInBatch(ctx context.Context, urls []string) ([]string,
 	return keys, nil
 }
 
-func (m *MockStorage) GetByURL(ctx context.Context, originalURL string) (string, error) {
+func (m *MockStorage) GetByURL(ctx context.Context, originalURL string, userID string) (string, error) {
 	return "", nil
+}
+
+func (m *MockStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {
+	result := make(map[string]string)
+
+	for short, data := range m.data {
+		if data.userID == userID {
+			result[short] = data.originalURL
+		}
+	}
+	if len(result) == 0 {
+		return nil, nil
+	}
+	return result, nil
+}
+
+func (m *MockStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+	for _, shortURL := range urls {
+		if _, exists := m.data[shortURL]; !exists {
+			return fmt.Errorf("shortURL %s not found", shortURL)
+		}
+	}
+	return nil
 }
 
 func TestCreateShortURL(t *testing.T) {
@@ -56,30 +92,34 @@ func TestCreateShortURL(t *testing.T) {
 		requestBody string
 		wantStatus  int
 		wantBody    string
+		checkID     bool
 	}{
 		{
 			name:        "Valid URL",
 			requestBody: "http://test.ru/testcase12345",
 			wantStatus:  http.StatusCreated,
 			wantBody:    "http://test/mock123",
+			checkID:     false,
 		},
 		{
 			name:        "Empty body",
 			requestBody: "",
 			wantStatus:  http.StatusBadRequest,
 			wantBody:    "Invalid request body\n",
+			checkID:     false,
 		},
 		{
 			name:        "Very short URL",
 			requestBody: "http://t.ru",
 			wantStatus:  http.StatusCreated,
 			wantBody:    "http://test/mock123",
+			checkID:     false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := &MockStorage{data: make(map[string]string)}
+			storage := &MockStorage{data: make(map[string]URLData)}
 			logger, err := zap.NewDevelopment()
 			if err != nil {
 				// вызываем панику, если ошибка
@@ -140,7 +180,10 @@ func TestURLHandler_Redirect(t *testing.T) {
 		{
 			name: "Valid short URL",
 			setup: func(s *MockStorage) {
-				s.data["abc123"] = "http://test.com"
+				s.data["abc123"] = URLData{
+					originalURL: "http://test.com",
+					userID:      "1",
+				}
 			},
 			urlParam:   "abc123",
 			wantStatus: http.StatusTemporaryRedirect,
@@ -157,7 +200,7 @@ func TestURLHandler_Redirect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := &MockStorage{data: make(map[string]string)}
+			storage := &MockStorage{data: make(map[string]URLData)}
 			tt.setup(storage)
 
 			logger, err := zap.NewDevelopment()
@@ -209,7 +252,7 @@ func TestCreateShortURLJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := &MockStorage{data: make(map[string]string)}
+			storage := &MockStorage{data: make(map[string]URLData)}
 			logger := zap.NewNop()
 
 			defer logger.Sync()
@@ -219,6 +262,9 @@ func TestCreateShortURLJSON(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
 
 			req.Header.Set("Content-Type", "application/json")
+
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
+			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
 
@@ -263,7 +309,7 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := &MockStorage{data: make(map[string]string)}
+			storage := &MockStorage{data: make(map[string]URLData)}
 			logger := zap.NewNop()
 
 			defer logger.Sync()
@@ -271,6 +317,11 @@ func TestCreateShortURLJSONErrorCases(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
 			req.Header.Set("Content-Type", "application/json")
+
+			// Добавляем user_id в контекст
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
+			req = req.WithContext(ctx)
+
 			w := httptest.NewRecorder()
 
 			handler(w, req)
@@ -324,7 +375,7 @@ func TestCreateBatchJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := &MockStorage{data: make(map[string]string)}
+			storage := &MockStorage{data: make(map[string]URLData)}
 			logger := zap.NewNop()
 
 			defer logger.Sync()
@@ -334,6 +385,10 @@ func TestCreateBatchJSON(t *testing.T) {
 			if tt.name != "Missing Content-Type" {
 				req.Header.Set("Content-Type", "application/json")
 			}
+
+			// Добавляем user_id в контекст
+			ctx := context.WithValue(req.Context(), middleware.UserIDKey, "test_user")
+			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
 
@@ -353,4 +408,150 @@ func TestCreateBatchJSON(t *testing.T) {
 
 		})
 	}
+}
+
+func TestGetUserURLS(t *testing.T) {
+	// Создаем тестовое хранилище
+	storage := storage.NewMemoryStorage()
+	baseURL := "http://test"
+	logger := zap.NewNop()
+
+	// Тестовые данные
+	userID := "user1"
+	testURLs := map[string]string{
+		"abc": "http://example.com/1",
+		"def": "http://example.com/2",
+	}
+
+	// Сохраняем тестовые URL
+	ctx := context.Background()
+	for _, original := range testURLs {
+		_, err := storage.Save(ctx, original, userID)
+		require.NoError(t, err)
+	}
+
+	t.Run("Успешный возврат URL пользователя", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/user/urls", nil)
+		req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, userID))
+
+		w := httptest.NewRecorder()
+		GetUserURLS(storage, baseURL, logger.Sugar())(w, req)
+
+		res := w.Result()
+		defer res.Body.Close()
+
+		// Проверяем статус код
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		// Проверяем заголовок Content-Type
+		require.Equal(t, "application/json", res.Header.Get("Content-Type"))
+
+		// Декодируем ответ
+		var response []struct {
+			ShortURL    string `json:"short_url"`
+			OriginalURL string `json:"original_url"`
+		}
+		err := json.NewDecoder(res.Body).Decode(&response)
+		require.NoError(t, err)
+
+		// Проверяем количество URL в ответе
+		require.Len(t, response, len(testURLs))
+	})
+
+	t.Run("Нет URL для пользователя", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/user/urls", nil)
+		req = req.WithContext(context.WithValue(req.Context(), middleware.UserIDKey, "unknown_user"))
+
+		w := httptest.NewRecorder()
+		GetUserURLS(storage, baseURL, logger.Sugar())(w, req)
+
+		res := w.Result()
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusNoContent, res.StatusCode)
+	})
+
+	t.Run("Неавторизованный доступ", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/user/urls", nil)
+
+		w := httptest.NewRecorder()
+		GetUserURLS(storage, baseURL, logger.Sugar())(w, req)
+
+		res := w.Result()
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+}
+
+func TestDeleteHandler(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	sugar := logger.Sugar()
+	defer logger.Sync()
+
+	mockStore := &MockStorage{data: map[string]URLData{
+		"abc123": {originalURL: "http://example.com", userID: "test-user"},
+		"def456": {originalURL: "http://test.com", userID: "test-user"},
+	}}
+
+	ch := make(chan tasks.DeleteTask, 1)
+
+	handler := DeleteHandler(mockStore, sugar, ch)
+
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), middleware.UserIDKey, "test-user")
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+	r.Delete("/api/user/urls", handler)
+
+	t.Run("valid request", func(t *testing.T) {
+		payload, _ := json.Marshal([]string{"abc123", "def456"})
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusAccepted, rr.Code)
+
+		select {
+		case task := <-ch:
+			require.Equal(t, "test-user", task.UserID)
+			require.ElementsMatch(t, []string{"abc123", "def456"}, task.ShortURLs)
+		default:
+			t.Fatal("task not sent to channel")
+		}
+	})
+
+	t.Run("missing content type", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader([]byte(`["abc123"]`)))
+		rr := httptest.NewRecorder()
+
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("empty body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader([]byte{}))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("no user id", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", bytes.NewReader([]byte(`["abc123"]`)))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		DeleteHandler(mockStore, sugar, ch).ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
 }

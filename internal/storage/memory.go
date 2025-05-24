@@ -2,23 +2,29 @@ package storage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/rand"
 	"sync"
 )
 
 type MemoryStorage struct {
-	data map[string]string
+	data map[string]URLData
 	mu   sync.RWMutex //Для потокобезопасности
+}
+
+type URLData struct {
+	OriginalURL string
+	UserID      string
+	Deleted     bool
 }
 
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
-		data: make(map[string]string),
+		data: make(map[string]URLData),
 	}
 }
 
-func (s *MemoryStorage) Save(ctx context.Context, url string) (string, error) {
+func (s *MemoryStorage) Save(ctx context.Context, url string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -29,12 +35,15 @@ func (s *MemoryStorage) Save(ctx context.Context, url string) (string, error) {
 	defer s.mu.Unlock()
 
 	for short, original := range s.data {
-		if original == url {
+		if original.OriginalURL == url {
 			return short, ErrAlreadyHasKey // Возвращаем существующий ключ
 		}
 	}
 	key := generateShortCode()
-	s.data[key] = url
+	s.data[key] = URLData{
+		OriginalURL: url,
+		UserID:      userID,
+	}
 	return key, nil
 
 }
@@ -46,15 +55,19 @@ func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
 	default:
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	url, exists := s.data[key]
 	if !exists {
-		return "", fmt.Errorf("URL not found")
+		return "", ErrNotFound
 	}
 
-	return url, nil
+	if url.Deleted {
+		return "", ErrDeleted
+	}
+
+	return url.OriginalURL, nil
 }
 
 func (s *MemoryStorage) Ping(ctx context.Context) error {
@@ -71,20 +84,26 @@ func generateShortCode() string {
 	return string(code)
 }
 
-func (s *MemoryStorage) SaveInBatch(ctx context.Context, urls []string) ([]string, error) {
+func (s *MemoryStorage) SaveInBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	keys := make([]string, len(urls))
+	keys := make([]URLData, len(urls))
+	result := make([]string, len(urls))
 	for i := range keys {
-		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем фейковый ключ
+		key := generateShortCode()
+		s.data[key] = URLData{
+			OriginalURL: urls[i], // Генерируем фейковый ключ
+			UserID:      userID,
+		}
+		result[i] = key
 	}
 
-	return keys, nil
+	return result, nil
 }
 
-func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string) (string, error) {
+func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -93,11 +112,43 @@ func (s *MemoryStorage) GetByURL(ctx context.Context, OriginalURL string) (strin
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	for shortURL, url := range s.data {
-		if url == OriginalURL {
-			return shortURL, nil
+		if url.OriginalURL == OriginalURL && url.UserID == userID {
+			if !url.Deleted {
+				return shortURL, nil
+			}
 		}
 	}
 	return "", nil
+}
+
+func (s *MemoryStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	AllURLS := map[string]string{}
+	for short, url := range s.data {
+		if url.UserID == userID && !url.Deleted {
+			AllURLS[short] = url.OriginalURL
+		}
+	}
+	return AllURLS, nil
+}
+
+func (s *MemoryStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
+	for _, shortURL := range urls {
+		data, exists := s.data[shortURL]
+		if exists && data.UserID == userID {
+			data.Deleted = true
+			s.data[shortURL] = data
+		} else {
+			return errors.New("err not found")
+		}
+	}
+	return nil
 }
