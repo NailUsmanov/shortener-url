@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/handlers"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
@@ -29,7 +30,6 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 		sugar:      sugar,
 		deleteChan: make(chan tasks.DeleteTask, 1000),
 	}
-	sugar.Info("App initialized")
 	app.setupRoutes()
 	return app
 }

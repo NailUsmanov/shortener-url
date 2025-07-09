@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/app"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
@@ -10,6 +12,10 @@ import (
 )
 
 func main() {
+	go func() {
+		log.Println("pprof listening on http://localhost:6060")
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	// создаём предустановленный регистратор zap
 	logger, err := zap.NewDevelopment()

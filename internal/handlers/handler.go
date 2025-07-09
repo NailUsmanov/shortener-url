@@ -31,12 +31,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
 			return
 		}
-		// Проверяем Content-Type
-		// contentType := r.Header.Get("Content-Type")
-		// if contentType != "" && !strings.HasPrefix(contentType, "text/plain") {
-		// 	http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
-		// 	return
-		// }
+
 		sugar.Infof("Content-Type: %s", r.Header.Get("Content-Type"))
 		// Читаем тело запроса
 		body, err := io.ReadAll(r.Body)
