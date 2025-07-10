@@ -17,7 +17,6 @@ type FileStorage struct {
 }
 
 func NewFileStorage(filePath string) (*FileStorage, error) {
-
 	s := &FileStorage{
 		memory:   NewMemoryStorage(),
 		filePath: filePath,
@@ -41,6 +40,7 @@ type ShortURLJSON struct {
 	UserID      string `json:"user_id"`
 }
 
+// Используется для сохранения УРЛ в файл
 func (f *FileStorage) Save(ctx context.Context, url string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
