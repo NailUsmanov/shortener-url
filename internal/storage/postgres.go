@@ -15,21 +15,33 @@ import (
 	"github.com/lib/pq"
 )
 
+// DataBaseStorage - PostgreSQL хранилище для сокращенных URL.
 type DataBaseStorage struct {
 	db *sql.DB
 }
 
-var SelectShortURL string = "SELECT short_url FROM short_urls WHERE original_url = $1 AND user_id = $2"
-var InsertOriginalAndShortURL string = "INSERT INTO short_urls (original_url, short_url, user_id) VALUES ($1, $2, $3)"
-var PrepareSQL string = `INSERT INTO short_urls (original_url, short_url, user_id)
+// SQLQueries содержит SQL-запросы, используемые в DataBaseStorage.
+var (
+	// SelectShortURL - запрос для получения короткого URL по оригиналу и ID пользователя.
+	SelectShortURL string = "SELECT short_url FROM short_urls WHERE original_url = $1 AND user_id = $2"
+	// InsertOriginalAndShortURL - запрос для добавления в БД пары сокращенного и оригинального URL.
+	InsertOriginalAndShortURL string = "INSERT INTO short_urls (original_url, short_url, user_id) VALUES ($1, $2, $3)"
+	// PrepareSQL -  запрос для добавления в БД пары сокращенного и оригинального URL.
+	PrepareSQL string = `INSERT INTO short_urls (original_url, short_url, user_id)
     VALUES ($1, $2, $3)
     ON CONFLICT (original_url) DO NOTHING
     RETURNING short_url`
-var SelectOriginalURL string = `SELECT original_url FROM short_urls WHERE short_url = $1`
-var SelectAllOriginalURL string = "SELECT short_url, original_url FROM short_urls WHERE user_id = $1"
-var IsDeletedSQL string = "UPDATE short_urls SET is_deleted = true WHERE short_url = ANY($1) AND user_id = $2;"
-var SelectOriginalURLWithFlag string = "SELECT original_url, is_deleted FROM short_urls WHERE short_url = $1"
+	// SelectOriginalURL - запрос на получение оригинала URL по сокращенному URL.
+	SelectOriginalURL string = `SELECT original_url FROM short_urls WHERE short_url = $1`
+	// SelectAllOriginalURL - запрос на получение всех пар сокращения и оригиналов URL для конкретного пользователя.
+	SelectAllOriginalURL string = "SELECT short_url, original_url FROM short_urls WHERE user_id = $1"
+	// IsDeletedSQL - запрос на обновление флага удаления для конкретного пользователя.
+	IsDeletedSQL string = "UPDATE short_urls SET is_deleted = true WHERE short_url = ANY($1) AND user_id = $2;"
+	// SelectOriginalURLWithFlag - запрос на получение пар URL с флагом удаления.
+	SelectOriginalURLWithFlag string = "SELECT original_url, is_deleted FROM short_urls WHERE short_url = $1"
+)
 
+// NewDataBaseStorage создает новое PostgreSQL хранилище URL.
 func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -63,6 +75,9 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	return &DataBaseStorage{db: db}, nil
 }
 
+// Save сохраняет оригинальный URL и его сокращение в БД.
+//
+// Если такой URL уже есть, возвращает короткий ключ.
 func (d *DataBaseStorage) Save(ctx context.Context, url string, userID string) (string, error) {
 	// Проверяем есть ли такая ссылка уже в базе данных и выдаем имеющийся ключ
 
@@ -85,6 +100,7 @@ func (d *DataBaseStorage) Save(ctx context.Context, url string, userID string) (
 	return key, ErrAlreadyHasKey // URL уже существует у нас в баще, возвращаем его short_url
 }
 
+// Get выдает полный URL по его сокращенному варианту.
 func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
 	var originalURL string
 	var isDeleted bool
@@ -110,6 +126,7 @@ func (d *DataBaseStorage) Close() error {
 	return nil
 }
 
+// Ping - проверяет подключение к БД.
 func (d *DataBaseStorage) Ping(ctx context.Context) error {
 	if d == nil || d.db == nil {
 		return fmt.Errorf("database connection is not initialized")
@@ -117,6 +134,9 @@ func (d *DataBaseStorage) Ping(ctx context.Context) error {
 	return d.db.PingContext(ctx)
 }
 
+// SaveInBatch позволяет сократить и сохранить в базу сразу несколько URL.
+//
+// Возвращает срез сокращенных URL
 func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 
 	// Подготовка транзакции
@@ -163,6 +183,7 @@ func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string, userID
 
 }
 
+// GetByURL позволяет получить сокращенный URL по его оригиналу.
 func (d *DataBaseStorage) GetByURL(ctx context.Context, originalURL string, userID string) (string, error) {
 	var shortURL string
 	err := d.db.QueryRowContext(ctx,
@@ -177,6 +198,7 @@ func (d *DataBaseStorage) GetByURL(ctx context.Context, originalURL string, user
 	return shortURL, nil
 }
 
+// GetUserURLS выдает все пары (сокращенные URL и его оригинал), отправленные  когда-либо пользователем.
 func (d *DataBaseStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {
 	select {
 	case <-ctx.Done():
@@ -205,6 +227,7 @@ func (d *DataBaseStorage) GetUserURLS(ctx context.Context, userID string) (map[s
 	return result, nil
 }
 
+// MarkAsDeleted помечает URL для удаления в фоновом выполнении
 func (d *DataBaseStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
 	select {
 	case <-ctx.Done():

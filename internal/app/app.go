@@ -1,3 +1,6 @@
+// Package app конфигурирует и запускает HTTP-приложение.
+//
+// Настраивает маршруты, middleware и запускает сервер.
 package app
 
 import (
@@ -13,6 +16,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// App инкапсулирует конфигурацию HTTP-сервера.
+//
+// Включает маршрутизатор chi, хранилище, базовый URL, логгер и канал для фонового удаления URL.
 type App struct {
 	router     *chi.Mux
 	storage    storage.Storage
@@ -21,6 +27,9 @@ type App struct {
 	deleteChan chan tasks.DeleteTask
 }
 
+// NewApp создаёт и настраивает экземпляр App.
+//
+// Регистрирует маршруты и middleware.
 func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 	r := chi.NewRouter()
 	app := &App{
@@ -56,6 +65,7 @@ func (a *App) setupRoutes() {
 	a.router.Delete("/api/user/urls", handlers.DeleteHandler(a.storage, a.sugar, a.deleteChan))
 }
 
+// Run запускает HTTP-сервер на указанном адресе.
 func (a *App) Run(addr string) error {
 	return http.ListenAndServe(addr, a.router) //передаем указатель на роутер
 }

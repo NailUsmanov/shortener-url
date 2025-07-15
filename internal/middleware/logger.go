@@ -1,3 +1,6 @@
+// Package middleware содержит middleware-функции для HTTP-сервера.
+//
+// Включает логирование запросов, сжатие ответов и аутентификацию пользователей.
 package middleware
 
 import (
@@ -7,8 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// Для захвата данных ответа, которая иначе не доступна в мидлвеар
-// получаем размер ответа в байт и статус код самого ответа
+// responseData содержит данные об ответе HTTP-сервера — размер в байтах и статус-код.
+//
+// Используется для захвата информации, которую нельзя получить напрямую из ResponseWriter.
 type responseData struct {
 	size   int
 	status int
@@ -33,6 +37,9 @@ func (r *loggingResponseWritter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode // записываем статус
 }
 
+// LoggingMiddleWare возвращает middleware, логирующее HTTP-запросы.
+//
+// В лог записываются URI, метод, статус-код, размер ответа и длительность обработки.
 func LoggingMiddleWare(logger *zap.SugaredLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
