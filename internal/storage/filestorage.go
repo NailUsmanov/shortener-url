@@ -157,6 +157,7 @@ func (f *FileStorage) loadFromFile() {
 	}
 }
 
+// FileStorage.Ping используется для проверки соединения с БД.
 func (f *FileStorage) Ping(ctx context.Context) error {
 	// Проверяем отмену контекста
 	if err := ctx.Err(); err != nil {

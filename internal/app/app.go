@@ -51,7 +51,7 @@ func (a *App) setupRoutes() {
 		}
 	}()
 	// MiddleWare
-	a.router.Use(middleware.LoggingMiddleWare(a.sugar))
+	a.router.Use(middleware.LoggingMiddleware(a.sugar))
 	a.router.Use(middleware.AuthMiddleware)
 	a.router.Use(middleware.GzipMiddleware)
 

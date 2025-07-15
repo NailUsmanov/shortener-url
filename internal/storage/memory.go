@@ -80,6 +80,7 @@ func (s *MemoryStorage) Get(ctx context.Context, key string) (string, error) {
 	return url.OriginalURL, nil
 }
 
+// MemoryStorage.Ping используется для проверки соединения с БД.
 func (s *MemoryStorage) Ping(ctx context.Context) error {
 	return ctx.Err()
 }

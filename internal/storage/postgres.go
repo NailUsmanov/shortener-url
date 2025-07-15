@@ -119,6 +119,7 @@ func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
 	return originalURL, nil
 }
 
+// Close используется для закрытия PostgreSQL БД и освобождения ресурсов.
 func (d *DataBaseStorage) Close() error {
 	if d.db != nil {
 		return d.db.Close()

@@ -1,3 +1,7 @@
+// Package config provides application configuration.
+//
+// Поддерживает загрузку параметров из переменных окружения и флагов командной строки.
+// Включает настройки адреса сервера, базового URL, хранилища и ключей безопасности.
 package config
 
 import (
@@ -9,6 +13,10 @@ import (
 	"github.com/caarlos0/env/v6"
 )
 
+// Config holds application configuration parameters.
+//
+// Включает адрес сервера, базовый URL, путь к файлу хранения, строку подключения к БД
+// и секретный ключ для cookie.
 type Config struct {
 	RunAddr         string `env:"SERVER_ADDRESS" envDefault:":8080"`
 	BaseURL         string `env:"BASE_URL"`
@@ -25,6 +33,10 @@ var (
 	flagDataBaseLong = flag.String("database-dsn", "", "DSN to connect to the database")
 )
 
+// NewConfig загружает конфигурацию из переменных окружения и флагов.
+//
+// Значения из флагов имеют приоритет. Устанавливает значения по умолчанию
+// и генерирует секретный ключ, если он не задан.
 func NewConfig() (*Config, error) {
 	flag.Parse()
 	cfg := &Config{}
@@ -77,6 +89,7 @@ func NewConfig() (*Config, error) {
 	return cfg, nil
 }
 
+// GenerateKeyToken generates a random 32-byte key for signing cookies.
 func GenerateKeyToken() []byte {
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
