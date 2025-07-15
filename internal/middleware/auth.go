@@ -7,9 +7,10 @@ import (
 	"net/http"
 )
 
-// Ключ для хранения userID в контексте
+// Ключ для хранения userID в контексте.
 type contextKey string
 
+// UserIDKey используется для передачи userID в контексте.
 const (
 	UserIDKey contextKey = "userID"
 )

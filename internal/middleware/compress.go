@@ -46,6 +46,7 @@ func (c *CompressWriter) WriteHeader(statusCode int) {
 	c.w.WriteHeader(statusCode)
 }
 
+// Close завершает работу gzip.Writer и освобождает ресурсы.
 func (c *CompressWriter) Close() error {
 	return c.zw.Close()
 }
@@ -76,6 +77,7 @@ func (c *CompressReader) Read(p []byte) (int, error) {
 	return c.zr.Read(p)
 }
 
+// Close завершает работу gzip.Writer и освобождает ресурсы.
 func (c *CompressReader) Close() error {
 	if err := c.r.Close(); err != nil {
 		return err
