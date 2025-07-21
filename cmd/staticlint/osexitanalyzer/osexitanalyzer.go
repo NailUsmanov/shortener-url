@@ -22,6 +22,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// Analyzer собственный анализатор для проверки выхода через os.Exit в функции main из пакета main.
 var Analyzer = &analysis.Analyzer{
 	Name: "osexitcheck",
 	Doc:  "Запрещает использование os.Exit в функции main пакета main",
