@@ -7,14 +7,19 @@ import (
 	"net/http"
 )
 
-// Ключ для хранения userID в контексте
+// Ключ для хранения userID в контексте.
 type contextKey string
 
+// UserIDKey используется для передачи userID в контексте.
 const (
 	UserIDKey contextKey = "userID"
 )
 
-// AuthMiddleware создает middleware для аутентификации
+// AuthMiddleware - HTTP middleware, проводит аутентификацию пользователя.
+//
+// Использует куки. Если кука отстутствует, то генерируется новый токен и UserID.
+// Если кука есть, то используется ее значение как UserID
+// Затем она добавляется в контекст.
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 1. Проверяем куку auth_token (как требуют тесты Практикума)

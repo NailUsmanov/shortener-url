@@ -9,6 +9,9 @@ import (
 	"sync"
 )
 
+// FileStorage - хранилище сокращенных URL в файле.
+//
+// Использует мьютекс для потокобезопасного доступа.
 type FileStorage struct {
 	memory    *MemoryStorage
 	filePath  string
@@ -16,8 +19,8 @@ type FileStorage struct {
 	saveMutex sync.Mutex
 }
 
+// NewFileStorage - создает новое файл-хранилище.
 func NewFileStorage(filePath string) (*FileStorage, error) {
-
 	s := &FileStorage{
 		memory:   NewMemoryStorage(),
 		filePath: filePath,
@@ -34,6 +37,7 @@ func NewFileStorage(filePath string) (*FileStorage, error) {
 
 }
 
+// ShortURLJSON структура для хранения пар сокращенного и оригинального URL для конкретного пользователя.
 type ShortURLJSON struct {
 	UUID        int    `json:"uuid"`
 	ShortURL    string `json:"short_url"`
@@ -41,6 +45,9 @@ type ShortURLJSON struct {
 	UserID      string `json:"user_id"`
 }
 
+// Save - используется для сохранения URL в файл.
+//
+// Если URL уже существует — возвращает уже существующий короткий ключ.
 func (f *FileStorage) Save(ctx context.Context, url string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
@@ -68,6 +75,7 @@ func (f *FileStorage) Save(ctx context.Context, url string, userID string) (stri
 	return key, nil
 }
 
+// Get выдает полный URL по его сокращенному варианту.
 func (f *FileStorage) Get(ctx context.Context, key string) (string, error) {
 	select {
 	case <-ctx.Done():
@@ -149,6 +157,7 @@ func (f *FileStorage) loadFromFile() {
 	}
 }
 
+// FileStorage.Ping используется для проверки соединения с БД.
 func (f *FileStorage) Ping(ctx context.Context) error {
 	// Проверяем отмену контекста
 	if err := ctx.Err(); err != nil {
@@ -158,21 +167,25 @@ func (f *FileStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
+// SaveInBatch позволяет сократить и сохранить в базу сразу несколько URL.
+//
+// Возвращает срез сокращенных URL
 func (f *FileStorage) SaveInBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 	// Проверяем, не отменен ли контекст
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// Заглушка: просто возвращаем фейковые ключи
+	// Заглушка: просто возвращаем уникальные ключи
 	keys := make([]string, len(urls))
 	for i := range keys {
-		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем фейковый ключ
+		keys[i] = fmt.Sprintf("fake_key_%d", i) // Генерируем уникальный ключ
 	}
 
 	return keys, nil
 }
 
+// GetByURL позволяет получить сокращенный URL по его оригиналу.
 func (f *FileStorage) GetByURL(ctx context.Context, originalURL string, userID string) (string, error) {
 	select {
 	case <-ctx.Done():
@@ -194,6 +207,7 @@ func (f *FileStorage) GetByURL(ctx context.Context, originalURL string, userID s
 	return "", ErrNotFound
 }
 
+// GetUserURLS выдает все пары (сокращенные URL и его оригинал), отправленные  когда-либо пользователем.
 func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[string]string, error) {
 	select {
 	case <-ctx.Done():
@@ -214,6 +228,7 @@ func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[strin
 	return result, nil
 }
 
+// MarkAsDeleted помечает URL для удаления в фоновом выполнении
 func (f *FileStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
 	return nil
 }

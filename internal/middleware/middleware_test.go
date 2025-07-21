@@ -189,7 +189,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	})
 
 	// Создаем middleware с тестовым логгером
-	handler := LoggingMiddleWare(sugar)(mockHandler)
+	handler := LoggingMiddleware(sugar)(mockHandler)
 
 	t.Run("logs request details", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/test", nil)

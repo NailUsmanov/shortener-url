@@ -1,3 +1,4 @@
+// Package handlers описывает функции обработчики, используемые в HTTP-запросах.
 package handlers
 
 import (
@@ -18,6 +19,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// NewCreateShortURL создает короткий URL.
+//
+// Если URL уже есть возвращает его.
 func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s == nil {
@@ -31,12 +35,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 			http.Error(w, "Only POST requests are allowed", http.StatusBadRequest)
 			return
 		}
-		// Проверяем Content-Type
-		// contentType := r.Header.Get("Content-Type")
-		// if contentType != "" && !strings.HasPrefix(contentType, "text/plain") {
-		// 	http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
-		// 	return
-		// }
+
 		sugar.Infof("Content-Type: %s", r.Header.Get("Content-Type"))
 		// Читаем тело запроса
 		body, err := io.ReadAll(r.Body)
@@ -105,6 +104,7 @@ func NewCreateShortURL(s storage.Storage, baseURL string, sugar *zap.SugaredLogg
 	}
 }
 
+// NewRedirect перенаправляет клиента с короткой ссылки на оригинальный URL.
 func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 1. Получаем ID из URL
@@ -135,6 +135,7 @@ func NewRedirect(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 	}
 }
 
+// NewPingHandler проверяет работоспособность функции обработчика.
 func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Ping(r.Context()); err != nil {
@@ -146,6 +147,7 @@ func NewPingHandler(s storage.Storage, sugar *zap.SugaredLogger) http.HandlerFun
 	}
 }
 
+// NewCreateShortURLJSON создает короткую ссылку в формате JSON.
 func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -209,6 +211,7 @@ func NewCreateShortURLJSON(s storage.Storage, baseURL string, sugar *zap.Sugared
 	}
 }
 
+// NewCreateBatchJSON позволяет обработать сразу пакет URL для сокращения.
 func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sugar.Infof("CreateBatchJSON started, headers: %v", r.Header)
@@ -296,7 +299,7 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 	}
 }
 
-// GET /api/user/urls
+// GetUserURLS выдает все существующие у пользователя короткие URL.
 func GetUserURLS(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := r.Context().Value(middleware.UserIDKey).(string)
@@ -333,7 +336,7 @@ func GetUserURLS(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) ht
 	}
 }
 
-// DELETE /api/user/urls
+// DeleteHandler удаляет из памяти короткий URL.
 func DeleteHandler(s storage.Storage, sugar *zap.SugaredLogger, ch chan tasks.DeleteTask) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
