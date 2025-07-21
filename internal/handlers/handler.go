@@ -257,11 +257,12 @@ func NewCreateBatchJSON(s storage.Storage, baseURL string, sugar *zap.SugaredLog
 		}
 
 		keys, err := s.SaveInBatch(r.Context(), urls, userID)
+		key := ""
 		if err != nil {
 			if errors.Is(err, storage.ErrAlreadyHasKey) {
 
 				for _, url := range urls {
-					if key, err := s.GetByURL(r.Context(), url, userID); err == nil {
+					if key, err = s.GetByURL(r.Context(), url, userID); err == nil {
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusConflict)
 						json.NewEncoder(w).Encode(map[string]string{
