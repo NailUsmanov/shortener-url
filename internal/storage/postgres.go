@@ -50,7 +50,7 @@ func NewDataBaseStorage(dsn string) (*DataBaseStorage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
+	if err = db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping PostgreSQL: %v", err)
 	}
 
@@ -119,7 +119,7 @@ func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
 	return originalURL, nil
 }
 
-// Close используется для закрытия PostgreSQL БД и освобождения ресурсов.
+// Close используется для закрытия PostgreSQL БД и освобождения ресурс
 func (d *DataBaseStorage) Close() error {
 	if d.db != nil {
 		return d.db.Close()

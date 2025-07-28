@@ -46,11 +46,11 @@ func LoggingMiddleware(logger *zap.SugaredLogger) func(http.Handler) http.Handle
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			responseData := responseData{0, 0}
+			respData := responseData{}
 
 			lw := loggingResponseWritter{
 				ResponseWriter: w,
-				responseData:   &responseData,
+				responseData:   &respData,
 			}
 			next.ServeHTTP(&lw, r)
 
@@ -58,8 +58,8 @@ func LoggingMiddleware(logger *zap.SugaredLogger) func(http.Handler) http.Handle
 			logger.Infoln(
 				"uri", r.RequestURI,
 				"method", r.Method,
-				"status", responseData.status,
-				"size", responseData.size,
+				"status", respData.status,
+				"size", respData.size,
 				"duration", duration,
 			)
 		})
