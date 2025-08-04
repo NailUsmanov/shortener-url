@@ -67,5 +67,11 @@ func (a *App) setupRoutes() {
 
 // Run запускает HTTP-сервер на указанном адресе.
 func (a *App) Run(addr string) error {
+
 	return http.ListenAndServe(addr, a.router) //передаем указатель на роутер
+}
+
+func (a *App) RunHTTPS(addr, certFile, keyFile string) error {
+
+	return http.ListenAndServeTLS(addr, certFile, keyFile, a.router)
 }

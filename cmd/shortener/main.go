@@ -67,8 +67,17 @@ func main() {
 	if dbStore, ok := store.(*storage.DataBaseStorage); ok {
 		defer dbStore.Close()
 	}
-
-	if err := application.Run(cfg.RunAddr); err != nil {
-		sugar.Fatalln(err)
+	// Составляем защищенное соединение
+	if cfg.EnableHTTPS {
+		err := application.RunHTTPS(cfg.RunAddr, cfg.CertFile, cfg.KeyFile)
+		if err != nil {
+			sugar.Fatalln(err)
+		}
+	} else {
+		err = application.Run(cfg.RunAddr)
+		if err != nil {
+			sugar.Fatalln(err)
+		}
 	}
+
 }

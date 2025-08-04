@@ -18,6 +18,9 @@ import (
 // Включает адрес сервера, базовый URL, путь к файлу хранения, строку подключения к БД
 // и секретный ключ для cookie.
 type Config struct {
+	EnableHTTPS     bool   `env:"ENABLE_HTTPS"`
+	CertFile        string `env:"TLS_CERT_FILE"`
+	KeyFile         string `env:"TLS_KEY_FILE"`
 	RunAddr         string `env:"SERVER_ADDRESS" envDefault:":8080"`
 	BaseURL         string `env:"BASE_URL"`
 	SaveInFile      string `env:"FILE_STORAGE_PATH"`
@@ -26,6 +29,9 @@ type Config struct {
 }
 
 var (
+	flagHTTPS        = flag.Bool("s", false, "if want to run server with TLS")
+	flagCert         = flag.String("cert", "cert.pem", "path to TLS cert file")
+	flagKey          = flag.String("key", "key.pem", "path to TLS key file")
 	flagRunAddr      = flag.String("a", "", "address and port to run server")
 	flagBaseURL      = flag.String("b", "", "base URL for short links")
 	flagSaveInFile   = flag.String("f", "", "if want to save short URL in file")
@@ -47,6 +53,15 @@ func NewConfig() (*Config, error) {
 	}
 
 	// Если флаг передан, перезаписываем значения
+	if *flagHTTPS {
+		cfg.EnableHTTPS = true
+	}
+	if *flagCert != "" {
+		cfg.CertFile = *flagCert
+	}
+	if *flagKey != "" {
+		cfg.KeyFile = *flagKey
+	}
 	if *flagRunAddr != "" {
 		cfg.RunAddr = *flagRunAddr
 	}
@@ -79,6 +94,11 @@ func NewConfig() (*Config, error) {
 			hostPort = "localhost" + hostPort
 		}
 		cfg.BaseURL = fmt.Sprintf("http://%s", hostPort)
+	}
+
+	// Если включён HTTPS и адрес по умолчанию (:8080), меняем на 443
+	if cfg.EnableHTTPS && cfg.RunAddr == ":8080" {
+		cfg.RunAddr = ":443"
 	}
 
 	// Генерируем ключ ТОЛЬКО если он не задан через ENV
