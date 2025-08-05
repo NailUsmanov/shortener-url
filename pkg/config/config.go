@@ -15,7 +15,7 @@ import (
 
 // Config holds application configuration parameters.
 //
-// Включает адрес сервера, базовый URL, путь к файлу хранения, строку подключения к БД
+// Включает адрес сервера защищенного и простого, базовый URL, путь к файлу хранения, строку подключения к БД
 // и секретный ключ для cookie.
 type Config struct {
 	EnableHTTPS     bool   `env:"ENABLE_HTTPS"`
