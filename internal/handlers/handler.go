@@ -5,6 +5,7 @@ import (
 	_ "bytes"
 	"encoding/json"
 	"net/http"
+	"sort"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/models"
@@ -44,11 +45,17 @@ func GetUserURLS(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) ht
 			return
 		}
 
+		keys := make([]string, 0, len(urls))
+		for k := range urls {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
 		var resp []models.UserURLs
-		for short, original := range urls {
+		for _, short := range keys {
 			resp = append(resp, models.UserURLs{
 				ShortURL:    baseURL + "/" + short,
-				OriginalURL: original,
+				OriginalURL: urls[short],
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
