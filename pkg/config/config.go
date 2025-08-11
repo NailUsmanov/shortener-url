@@ -6,8 +6,10 @@ package config
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/caarlos0/env/v6"
@@ -18,25 +20,28 @@ import (
 // Включает адрес сервера защищенного и простого, базовый URL, путь к файлу хранения, строку подключения к БД
 // и секретный ключ для cookie.
 type Config struct {
-	EnableHTTPS     bool   `env:"ENABLE_HTTPS"`
-	CertFile        string `env:"TLS_CERT_FILE"`
-	KeyFile         string `env:"TLS_KEY_FILE"`
-	RunAddr         string `env:"SERVER_ADDRESS" envDefault:":8080"`
-	BaseURL         string `env:"BASE_URL"`
-	SaveInFile      string `env:"FILE_STORAGE_PATH"`
-	DataBase        string `env:"DATABASE_DSN"`
-	CookieSecretKey []byte `env:"COOKIE_SECRET_KEY"`
+	EnableHTTPS     bool   `env:"ENABLE_HTTPS" json:"enable_https"`
+	CertFile        string `env:"TLS_CERT_FILE" json:"tls_cert_file"`
+	KeyFile         string `env:"TLS_KEY_FILE" json:"tls_key_file"`
+	RunAddr         string `env:"SERVER_ADDRESS" json:"server_address"`
+	BaseURL         string `env:"BASE_URL" json:"base_url"`
+	SaveInFile      string `env:"FILE_STORAGE_PATH" json:"file_storage_path"`
+	DataBase        string `env:"DATABASE_DSN" json:"database_dsn"`
+	CookieSecretKey []byte `env:"COOKIE_SECRET_KEY" json:"cookie_secret_key"`
+	Config          string `env:"CONFIG"`
 }
 
 var (
 	flagHTTPS        = flag.Bool("s", false, "if want to run server with TLS")
-	flagCert         = flag.String("cert", "cert.pem", "path to TLS cert file")
-	flagKey          = flag.String("key", "key.pem", "path to TLS key file")
+	flagCert         = flag.String("cert", "", "path to TLS cert file")
+	flagKey          = flag.String("key", "", "path to TLS key file")
 	flagRunAddr      = flag.String("a", "", "address and port to run server")
 	flagBaseURL      = flag.String("b", "", "base URL for short links")
 	flagSaveInFile   = flag.String("f", "", "if want to save short URL in file")
 	flagDataBase     = flag.String("d", "", "if want to save short URL in DataBase")
 	flagDataBaseLong = flag.String("database-dsn", "", "DSN to connect to the database")
+	flagCJSON        = flag.String("c", "", "config for the app")
+	flagConfigJSON   = flag.String("config", "", "config for the app")
 )
 
 // NewConfig загружает конфигурацию из переменных окружения и флагов.
@@ -46,6 +51,28 @@ var (
 func NewConfig() (*Config, error) {
 	flag.Parse()
 	cfg := &Config{}
+
+	var path string
+
+	switch {
+	case *flagCJSON != "":
+		path = *flagCJSON
+	case *flagConfigJSON != "":
+		path = *flagConfigJSON
+	case os.Getenv("CONGIF") != "":
+		path = os.Getenv("CONFIG")
+	}
+
+	if path != "" {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open config %q: %w", path, err)
+		}
+		defer file.Close()
+		if err := json.NewDecoder(file).Decode(cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse JSON")
+		}
+	}
 
 	// Парсим переменные окружения
 	if err := env.Parse(cfg); err != nil {
@@ -99,6 +126,14 @@ func NewConfig() (*Config, error) {
 	// Если включён HTTPS и адрес по умолчанию (:8080), меняем на 443
 	if cfg.EnableHTTPS && cfg.RunAddr == ":8080" {
 		cfg.RunAddr = ":443"
+	}
+	if cfg.EnableHTTPS {
+		if cfg.CertFile == "" {
+			cfg.CertFile = "cert.pem"
+		}
+		if cfg.KeyFile == "" {
+			cfg.KeyFile = "key.pem"
+		}
 	}
 
 	// Генерируем ключ ТОЛЬКО если он не задан через ENV
