@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os/signal"
+	"syscall"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/app"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
@@ -63,18 +66,20 @@ func main() {
 
 	application := app.NewApp(store, cfg.BaseURL, sugar)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	// Закрываем соединение только для БД
 	if dbStore, ok := store.(*storage.DataBaseStorage); ok {
 		defer dbStore.Close()
 	}
 	// Составляем защищенное соединение
 	if cfg.EnableHTTPS {
-		err := application.RunHTTPS(cfg.RunAddr, cfg.CertFile, cfg.KeyFile)
-		if err != nil {
+		err := application.RunHTTPS(ctx, cfg.RunAddr, cfg.CertFile, cfg.KeyFile)
+		if err != nil && err != http.ErrServerClosed {
 			sugar.Fatalln(err)
 		}
 	} else {
-		err = application.Run(cfg.RunAddr)
+		err = application.Run(ctx, cfg.RunAddr)
 		if err != nil {
 			sugar.Fatalln(err)
 		}
