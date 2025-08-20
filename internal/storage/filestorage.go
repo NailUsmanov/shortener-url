@@ -228,7 +228,52 @@ func (f *FileStorage) GetUserURLS(ctx context.Context, userID string) (map[strin
 	return result, nil
 }
 
-// MarkAsDeleted помечает URL для удаления в фоновом выполнении
+// MarkAsDeleted помечает URL для удаления в фоновом выполнении.
 func (f *FileStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
 	return nil
+}
+
+// CountURL возвращает все сокращенные ссылки.
+func (f *FileStorage) CountURL(ctx context.Context) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	var count int
+	f.memory.mu.RLock()
+	defer f.memory.mu.RUnlock()
+
+	for _, url := range f.memory.data {
+		if !url.Deleted {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+// CountUsers возвращает количество пользователей.
+func (f *FileStorage) CountUsers(ctx context.Context) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	f.memory.mu.RLock()
+	defer f.memory.mu.RUnlock()
+
+	// Создаем мапу, где ключом будет юзер, а значением пустая структура, так как она не занимает места
+	userSet := make(map[string]struct{})
+
+	for _, user := range f.memory.data {
+		if !user.Deleted {
+			userSet[user.UserID] = struct{}{}
+		}
+	}
+
+	return len(userSet), nil
+
 }

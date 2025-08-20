@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os/signal"
@@ -43,6 +44,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	var subnet *net.IPNet
+
+	if cfg.TrustedSubnet != "" {
+		_, parsedNet, err := net.ParseCIDR(cfg.TrustedSubnet)
+		if err != nil {
+			sugar.Fatalf("failed to parse trusted subnet: %v", err)
+		}
+		subnet = parsedNet
+	}
 
 	var store storage.Storage
 
@@ -64,7 +74,7 @@ func main() {
 		sugar.Info("Using in-memory storage")
 	}
 
-	application := app.NewApp(store, cfg.BaseURL, sugar)
+	application := app.NewApp(store, cfg.BaseURL, sugar, subnet)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()

@@ -4,8 +4,10 @@ package handlers
 import (
 	_ "bytes"
 	"encoding/json"
+	"net"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/middleware"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/models"
@@ -64,6 +66,66 @@ func GetUserURLS(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) ht
 		enc := json.NewEncoder(w)
 		if err := enc.Encode(resp); err != nil {
 			sugar.Error("error encoding response:", err)
+		}
+	}
+}
+
+// GetStats выдает количество сокращенных URL в сервисе и количество пользователей в сервисе.
+func GetStats(s storage.Storage, subnet *net.IPNet, sugar *zap.SugaredLogger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// смотрим заголовок запроса X-Real-IP
+		ipStr := r.Header.Get("X-Real-IP")
+
+		// парсим ip
+		ip := net.ParseIP(ipStr)
+
+		if ip == nil {
+			// если заголовок X-Real-IP пуст, пробуем X-Forwarded-For
+			// этот заголовок содержит адреса отправителя и промежуточных прокси
+			// в виде 203.0.113.195, 70.41.3.18, 150.172.238.178
+			ips := r.Header.Get("X-Forwarded-For")
+			// разделяем цепочку адресов
+			ipStrs := strings.Split(ips, ",")
+			// интересует только первый
+			ipStr = ipStrs[0]
+			// парсим
+			ip = net.ParseIP(ipStr)
+		}
+
+		if ip == nil {
+			w.WriteHeader(http.StatusForbidden)
+			sugar.Error("failed parse ip from http header")
+			return
+		}
+
+		if !subnet.Contains(ip) {
+			w.WriteHeader(http.StatusForbidden)
+			sugar.Warnf("unathorized ip access")
+			return
+		}
+
+		totalUser, err := s.CountUsers(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		totalURLs, err := s.CountURL(r.Context())
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		stats := models.StatsURLs{
+			URLs:  totalURLs,
+			Users: totalUser,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		if err := json.NewEncoder(w).Encode(stats); err != nil {
+			sugar.Error("error encoding stats response:", err)
 		}
 	}
 }

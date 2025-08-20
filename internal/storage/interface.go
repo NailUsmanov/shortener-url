@@ -35,6 +35,12 @@ type URLFinder interface {
 	GetUserURLS(ctx context.Context, userID string) (map[string]string, error)
 }
 
+// URLStats описывает возможность получения статистики по количеству ссылок и пользователей в базе.
+type URLStats interface {
+	CountURL(ctx context.Context) (int, error)
+	CountUsers(ctx context.Context) (int, error)
+}
+
 // URLDeleter описывает возможность для удаления URL из памяти.
 type URLDeleter interface {
 	MarkAsDeleted(ctx context.Context, urls []string, userID string) error
@@ -46,4 +52,5 @@ type Storage interface {
 	BatchStorage
 	URLFinder
 	URLDeleter
+	URLStats
 }

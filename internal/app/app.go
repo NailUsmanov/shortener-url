@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"time"
@@ -26,12 +27,13 @@ type App struct {
 	baseURL    string
 	sugar      *zap.SugaredLogger
 	deleteChan chan tasks.DeleteTask
+	subnet     *net.IPNet
 }
 
 // NewApp создаёт и настраивает экземпляр App.
 //
 // Регистрирует маршруты и middleware.
-func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
+func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger, subnet *net.IPNet) *App {
 	r := chi.NewRouter()
 	app := &App{
 		router:     r, //разыменовываем указатель
@@ -39,6 +41,7 @@ func NewApp(s storage.Storage, baseURL string, sugar *zap.SugaredLogger) *App {
 		baseURL:    baseURL,
 		sugar:      sugar,
 		deleteChan: make(chan tasks.DeleteTask, 1000),
+		subnet:     subnet,
 	}
 	app.setupRoutes()
 	return app
@@ -59,6 +62,7 @@ func (a *App) setupRoutes() {
 	a.router.Post("/api/shorten/batch", handlers.NewCreateBatchJSON(a.storage, a.baseURL, a.sugar))
 	a.router.Get("/api/user/urls", handlers.GetUserURLS(a.storage, a.baseURL, a.sugar))
 	a.router.Delete("/api/user/urls", handlers.DeleteHandler(a.storage, a.sugar, a.deleteChan))
+	a.router.Get("/api/internal/stats", handlers.GetStats(a.storage, a.subnet, a.sugar))
 }
 
 // Run запускает HTTP-сервер на указанном адресе.

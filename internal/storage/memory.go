@@ -169,3 +169,48 @@ func (s *MemoryStorage) MarkAsDeleted(ctx context.Context, urls []string, userID
 	}
 	return nil
 }
+
+// CountURL выдает количество всех сокращенных ссылок в памяти на данный момент.
+func (s *MemoryStorage) CountURL(ctx context.Context) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var count int
+
+	for _, url := range s.data {
+		if !url.Deleted {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+// CountUsers выдает количество всех пользователей.
+func (s *MemoryStorage) CountUsers(ctx context.Context) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Создаем мапу, где ключом будет юзер, а значением пустая структура, так как она не занимает места
+	userSet := make(map[string]struct{})
+
+	for _, user := range s.data {
+		if !user.Deleted {
+			userSet[user.UserID] = struct{}{}
+		}
+	}
+
+	return len(userSet), nil
+}
