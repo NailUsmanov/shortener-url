@@ -39,6 +39,10 @@ var (
 	IsDeletedSQL string = "UPDATE short_urls SET is_deleted = true WHERE short_url = ANY($1) AND user_id = $2;"
 	// SelectOriginalURLWithFlag - запрос на получение пар URL с флагом удаления.
 	SelectOriginalURLWithFlag string = "SELECT original_url, is_deleted FROM short_urls WHERE short_url = $1"
+	// SelectCountURL - запрос на получение количества URL в базе.
+	SelectCountURL string = `SELECT COUNT(*) FROM short_urls WHERE is_deleted = false`
+	// SelectCountUsers - запрос на получение количества пользователей.
+	SelectCountUsers string = "SELECT COUNT(DISTINCT user_id) FROM short_urls WHERE is_deleted = false"
 )
 
 // NewDataBaseStorage создает новое PostgreSQL хранилище URL.
@@ -119,7 +123,7 @@ func (d *DataBaseStorage) Get(ctx context.Context, key string) (string, error) {
 	return originalURL, nil
 }
 
-// Close используется для закрытия PostgreSQL БД и освобождения ресурс
+// Close используется для закрытия PostgreSQL БД и освобождения ресурс.
 func (d *DataBaseStorage) Close() error {
 	if d.db != nil {
 		return d.db.Close()
@@ -137,7 +141,7 @@ func (d *DataBaseStorage) Ping(ctx context.Context) error {
 
 // SaveInBatch позволяет сократить и сохранить в базу сразу несколько URL.
 //
-// Возвращает срез сокращенных URL
+// Возвращает срез сокращенных URL.
 func (d *DataBaseStorage) SaveInBatch(ctx context.Context, urls []string, userID string) ([]string, error) {
 
 	// Подготовка транзакции
@@ -228,7 +232,7 @@ func (d *DataBaseStorage) GetUserURLS(ctx context.Context, userID string) (map[s
 	return result, nil
 }
 
-// MarkAsDeleted помечает URL для удаления в фоновом выполнении
+// MarkAsDeleted помечает URL для удаления в фоновом выполнении.
 func (d *DataBaseStorage) MarkAsDeleted(ctx context.Context, urls []string, userID string) error {
 	select {
 	case <-ctx.Done():
@@ -242,4 +246,42 @@ func (d *DataBaseStorage) MarkAsDeleted(ctx context.Context, urls []string, user
 		return err
 	}
 	return nil
+}
+
+// CountURL выдает количество всех сокращенных ссылок в базе на данный момент.
+func (d *DataBaseStorage) CountURL(ctx context.Context) (int, error) {
+	// Для отмены операций, в случае отмены контекста
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	var count int
+	err := d.db.QueryRowContext(ctx, SelectCountURL).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("db query: %s", err)
+	}
+
+	return count, nil
+}
+
+// CountUsers возвращает количество всех пользователей в базе данных.
+func (d *DataBaseStorage) CountUsers(ctx context.Context) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	var count int
+
+	row := d.db.QueryRowContext(ctx, SelectCountUsers)
+	err := row.Scan(&count)
+
+	if err != nil {
+		return 0, fmt.Errorf("db query: %s", err)
+	}
+
+	return count, nil
 }

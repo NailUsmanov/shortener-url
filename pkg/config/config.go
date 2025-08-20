@@ -29,19 +29,21 @@ type Config struct {
 	DataBase        string `env:"DATABASE_DSN" json:"database_dsn"`
 	CookieSecretKey []byte `env:"COOKIE_SECRET_KEY" json:"cookie_secret_key"`
 	Config          string `env:"CONFIG"`
+	TrustedSubnet   string `env:"TRUSTED_SUBNET"`
 }
 
 var (
-	flagHTTPS        = flag.Bool("s", false, "if want to run server with TLS")
-	flagCert         = flag.String("cert", "", "path to TLS cert file")
-	flagKey          = flag.String("key", "", "path to TLS key file")
-	flagRunAddr      = flag.String("a", "", "address and port to run server")
-	flagBaseURL      = flag.String("b", "", "base URL for short links")
-	flagSaveInFile   = flag.String("f", "", "if want to save short URL in file")
-	flagDataBase     = flag.String("d", "", "if want to save short URL in DataBase")
-	flagDataBaseLong = flag.String("database-dsn", "", "DSN to connect to the database")
-	flagCJSON        = flag.String("c", "", "config for the app")
-	flagConfigJSON   = flag.String("config", "", "config for the app")
+	flagHTTPS         = flag.Bool("s", false, "if want to run server with TLS")
+	flagCert          = flag.String("cert", "", "path to TLS cert file")
+	flagKey           = flag.String("key", "", "path to TLS key file")
+	flagRunAddr       = flag.String("a", "", "address and port to run server")
+	flagBaseURL       = flag.String("b", "", "base URL for short links")
+	flagSaveInFile    = flag.String("f", "", "if want to save short URL in file")
+	flagDataBase      = flag.String("d", "", "if want to save short URL in DataBase")
+	flagDataBaseLong  = flag.String("database-dsn", "", "DSN to connect to the database")
+	flagCJSON         = flag.String("c", "", "config for the app")
+	flagConfigJSON    = flag.String("config", "", "config for the app")
+	flagTrustedSubnet = flag.String("t", "", "if you want to pass a string representation of classless addressing (CIDR)")
 )
 
 // NewConfig загружает конфигурацию из переменных окружения и флагов.
@@ -103,6 +105,10 @@ func NewConfig() (*Config, error) {
 		cfg.DataBase = *flagDataBaseLong
 	} else if *flagDataBase != "" {
 		cfg.DataBase = *flagDataBase
+	}
+
+	if *flagTrustedSubnet != "" {
+		cfg.TrustedSubnet = *flagTrustedSubnet
 	}
 
 	// Устанавливаем значение по умолчанию

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,7 +21,8 @@ func TestAppRoutes(t *testing.T) {
 	mockStore := storage.NewMemoryStorage()
 	logger := zap.NewNop()
 	defer logger.Sync()
-	app := NewApp(mockStore, "http://test", logger.Sugar())
+	var subnet *net.IPNet
+	app := NewApp(mockStore, "http://test", logger.Sugar(), subnet)
 
 	t.Run("Create and redirect URL", func(t *testing.T) {
 		// Шаг 1: Создаем короткую ссылку

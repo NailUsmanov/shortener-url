@@ -28,3 +28,9 @@ type UserURLs struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
+
+// StatsURLs содержит количество всех сокращенных ссылок и количество всех пользователей.
+type StatsURLs struct {
+	URLs  int `json:"urls"`
+	Users int `json:"users"`
+}
