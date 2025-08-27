@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -84,6 +85,18 @@ func (m *MockStorage) MarkAsDeleted(ctx context.Context, urls []string, userID s
 		}
 	}
 	return nil
+}
+
+func (m *MockStorage) CountURL(ctx context.Context) (int, error) {
+	return len(m.Data), nil
+}
+
+func (m *MockStorage) CountUsers(ctx context.Context) (int, error) {
+	userSet := make(map[string]struct{})
+	for _, user := range m.Data {
+		userSet[user.UserID] = struct{}{}
+	}
+	return len(userSet), nil
 }
 
 func TestCreateShortURL(t *testing.T) {
@@ -553,5 +566,59 @@ func TestDeleteHandler(t *testing.T) {
 		DeleteHandler(mockStore, sugar, ch).ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+}
+
+func TestGetStats(t *testing.T) {
+	logger := zap.NewNop()
+	sugar := logger.Sugar()
+
+	// Создаём моковое хранилище и добавляем данные
+	mockStore := &MockStorage{Data: map[string]URLData{
+		"short1": {OriginalURL: "http://example.com/1", UserID: "user1"},
+		"short2": {OriginalURL: "http://example.com/2", UserID: "user2"},
+	}}
+
+	// Разрешённая подсеть 192.168.0.0/16
+	_, subnet, err := net.ParseCIDR("192.168.0.0/16")
+	require.NoError(t, err)
+
+	handler := GetStats(mockStore, subnet, sugar)
+
+	t.Run("valid IP in subnet", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/internal/stats", nil)
+		req.Header.Set("X-Real-IP", "192.168.1.10")
+
+		w := httptest.NewRecorder()
+		handler(w, req)
+
+		res := w.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+		assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
+
+		var stats struct {
+			URLs  int `json:"urls"`
+			Users int `json:"users"`
+		}
+		err := json.NewDecoder(res.Body).Decode(&stats)
+		require.NoError(t, err)
+
+		assert.Equal(t, 2, stats.URLs)
+		assert.Equal(t, 2, stats.Users)
+	})
+
+	t.Run("IP not in subnet", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/internal/stats", nil)
+		req.Header.Set("X-Real-IP", "10.0.0.1") // Вне подсети
+
+		w := httptest.NewRecorder()
+		handler(w, req)
+
+		res := w.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	})
 }

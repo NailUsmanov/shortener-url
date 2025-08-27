@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os/signal"
 	"syscall"
 
 	"github.com/NailUsmanov/practicum-shortener-url/internal/app"
+	"github.com/NailUsmanov/practicum-shortener-url/internal/grpcserver"
 	"github.com/NailUsmanov/practicum-shortener-url/internal/storage"
 	"github.com/NailUsmanov/practicum-shortener-url/pkg/config"
 	"go.uber.org/zap"
@@ -43,6 +45,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	var subnet *net.IPNet
+
+	if cfg.TrustedSubnet != "" {
+		_, parsedNet, err := net.ParseCIDR(cfg.TrustedSubnet)
+		if err != nil {
+			sugar.Fatalf("failed to parse trusted subnet: %v", err)
+		}
+		subnet = parsedNet
+	}
 
 	var store storage.Storage
 
@@ -64,7 +75,20 @@ func main() {
 		sugar.Info("Using in-memory storage")
 	}
 
-	application := app.NewApp(store, cfg.BaseURL, sugar)
+	application := app.NewApp(store, cfg.BaseURL, sugar, subnet)
+
+	// Поднимаем gRPC рядом с HTTP. HTTP-грейсфул остается внутри Арр, а gRPC гасим из main по тому же ctx.
+	grpc := grpcserver.New(sugar, store, grpcserver.Config{
+		Addr:          ":3200",
+		BaseURL:       cfg.BaseURL,
+		TrustedSubnet: cfg.TrustedSubnet,
+	})
+	gs, err := grpc.Serve(":3200")
+
+	if err != nil {
+		sugar.Fatalf("failed to start gRPC: %v", err)
+	}
+	defer gs.GracefulStop()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
