@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package shortener.v1;
+
+option go_package = "github.com/NailUsmanov/practicum-shortener-url/internal/genproto/shortener/v1;shortenerpb";
+
+import "google/protobuf/empty.proto";
+
+// Так как в методах Пинг и Статс нам не нужно передавать никакие данные, используем встроенный тип google.protobuf.Empty
+// gRPC всегда требует какой-либо message на вход и выход. Используем google.protobuf.Empty как заглушку, чтобы каждый раз не объявлять самим
+// message Nothing {}.
+
+// gRPC контракты для сервиса сокращения URL. Все методы зеркалируют HTTP-функциональность.
+service ShortenerService {
+    rpc Shorten (ShortenRequest) returns (ShortenResponse);
+    rpc ShortenBatch (ShortenBatchRequest) returns (ShortenBatchResponse);
+    rpc Redirect (RedirectRequest) returns (RedirectResponse);
+    rpc ListUserURLs (google.protobuf.Empty) returns (ListUserURLsResponse);
+    rpc DeleteUserURLs (DeleteUserURLsRequest) returns (google.protobuf.Empty);
+    rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
+    rpc Stats (google.protobuf.Empty) returns (StatsResponse);
+}
+
+message ShortenRequest {
+    string original_url = 1; // исходный URL
+}
+
+message ShortenResponse {
+    string short_url = 1; // сокращенный URL 
+    bool already_exists = 2; // true, если URL уже существует
+}
+
+message ShortenBatchItem {
+    string correlation_id = 1; // ID элемента от клиента, чтобы сопоставить результат
+    string original_url = 2; // Исходный URL
+}
+
+message ShortenBatchRequest {
+    repeated ShortenBatchItem items = 1; // список URL на вход
+}
+
+message ShortenBatchResponseItem {
+    string correlation_id = 1;
+    string short_url = 2; // только URL, без short_id
+}
+
+message ShortenBatchResponse {
+    repeated ShortenBatchResponseItem items = 1; // список результатов в том же порядке, что и вход
+}
+
+message RedirectRequest {
+    string short_id = 1;
+}
+
+message RedirectResponse {
+    string original_url = 1;
+}
+
+
+message ListUserURLsResponseItem {
+    string short_url = 1;
+    string original_url = 2;
+}
+
+message ListUserURLsResponse {
+    repeated ListUserURLsResponseItem items = 1; // список пар URLs на выход
+}
+
+message DeleteUserURLsRequest {
+    repeated string short_urls = 1;
+}
+
+message StatsResponse {
+    int32 urls = 1;
+    int32 users = 2;
+}
+
+
+
+
